@@ -126,7 +126,9 @@ jobs:
         include:
           - platform: "macos-latest"
             bundle_ext: "dmg"
-          - platform: "windows-latest"
+          # WiX 3 requires VBScript for MSI ICE validation. It is no longer
+          # shipped by the Windows Server 2025 image behind windows-latest.
+          - platform: "windows-2022"
             bundle_ext: "msi"
     runs-on: ${{ matrix.platform }}
     steps:
@@ -151,22 +153,6 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-
-      # WiX 3 invokes VBScript during MSI ICE validation. Windows Server 2025
-      # runners can have it disabled, which otherwise makes light.exe fail
-      # without returning the underlying ICE diagnostic to Tauri.
-      - name: Enable VBScript required by WiX MSI validation
-        if: matrix.platform == 'windows-latest'
-        shell: pwsh
-        run: |
-          $feature = Get-WindowsOptionalFeature -Online -FeatureName VBSCRIPT -ErrorAction Stop
-          if ($feature.State -ne 'Enabled') {
-            Enable-WindowsOptionalFeature -Online -FeatureName VBSCRIPT -All -NoRestart -ErrorAction Stop | Out-Host
-          }
-          $state = (Get-WindowsOptionalFeature -Online -FeatureName VBSCRIPT -ErrorAction Stop).State
-          if ($state -ne 'Enabled') {
-            throw "VBScript must be enabled for WiX MSI validation; current state: $state"
-          }
 
       - name: Build Tauri Desktop Application
         run: npm run tauri build -- --verbose
