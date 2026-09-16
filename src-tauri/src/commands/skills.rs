@@ -297,6 +297,9 @@ pub async fn get_backups_list(skill_id: String) -> Result<Vec<BackupSnapshot>, S
 
 #[tauri::command]
 pub async fn open_in_editor(path: String) -> Result<(), String> {
+    // Linux has no platform-specific launcher branch below, but it still
+    // exposes this IPC command for a consistent cross-platform API.
+    let _ = &path;
     #[cfg(target_os = "macos")]
     {
         let _ = std::process::Command::new("open").arg(&path).spawn();
