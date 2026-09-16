@@ -47,6 +47,11 @@ jobs:
       - name: Verify Prettier Code Formatting
         run: npx prettier --check "src/**/*.{ts,tsx,css,json}"
 
+      - name: Install Linux Tauri Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+
       - name: Setup Rust Stable Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
