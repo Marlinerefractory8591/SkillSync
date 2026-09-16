@@ -1,0 +1,160 @@
+use crate::errors::SkillSyncError;
+use crate::models::skill::BackupSnapshot;
+use flate2::read::GzDecoder;
+use flate2::write::GzEncoder;
+use flate2::Compression;
+use std::fs::{self, File};
+use std::path::{Path, PathBuf};
+
+pub struct BackupService;
+
+impl BackupService {
+    pub fn get_backup_dir() -> PathBuf {
+        let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("/"));
+        let dir = home.join(".skillsync").join("backups");
+        let _ = fs::create_dir_all(&dir);
+        dir
+    }
+
+    pub fn create_snapshot(
+        skill_path: &Path,
+        skill_id: &str,
+        current_version: &str,
+    ) -> Result<BackupSnapshot, SkillSyncError> {
+        let backup_dir = Self::get_backup_dir();
+        let timestamp = chrono::Utc::now();
+        let filename = format!("{}_{}.tar.gz", skill_id, timestamp.format("%Y%m%d_%H%M%S"));
+        let target_file = backup_dir.join(&filename);
+
+        let file = File::create(&target_file)?;
+        let enc = GzEncoder::new(file, Compression::default());
+        let mut tar = tar::Builder::new(enc);
+
+        tar.append_dir_all(".", skill_path)?;
+        tar.finish()?;
+
+        let snap_id = format!("snap-{}", timestamp.timestamp());
+
+        // Write metadata JSON sidecar file for exact version and timestamp persistence
+        let meta_file = backup_dir.join(format!("{}.meta.json", filename));
+        let meta_json = serde_json::json!({
+            "snapshot_id": snap_id,
+            "skill_id": skill_id,
+            "created_at": timestamp.to_rfc3339(),
+            "original_version": current_version,
+            "filename": filename,
+        });
+        let _ = fs::write(&meta_file, meta_json.to_string());
+
+        Ok(BackupSnapshot {
+            snapshot_id: snap_id,
+            skill_id: skill_id.to_string(),
+            created_at: timestamp,
+            backup_file_path: target_file,
+            original_version: current_version.to_string(),
+        })
+    }
+
+    pub fn restore_snapshot(skill_path: &Path, snapshot_file: &Path) -> Result<(), SkillSyncError> {
+        if !snapshot_file.exists() {
+            return Err(SkillSyncError::RollbackFailed(
+                "Snapshot file not found".into(),
+            ));
+        }
+
+        let file = File::open(snapshot_file)?;
+        let dec = GzDecoder::new(file);
+        let mut archive = tar::Archive::new(dec);
+
+        // Unpack over existing files
+        archive
+            .unpack(skill_path)
+            .map_err(|e| SkillSyncError::RollbackFailed(e.to_string()))?;
+        Ok(())
+    }
+
+    pub fn list_snapshots(skill_id: &str) -> Vec<BackupSnapshot> {
+        let backup_dir = Self::get_backup_dir();
+        let mut result = Vec::new();
+
+        if let Ok(entries) = fs::read_dir(&backup_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    if name.starts_with(skill_id) && name.ends_with(".tar.gz") {
+                        let meta_path = backup_dir.join(format!("{}.meta.json", name));
+                        let mut snap_created_at = None;
+                        let mut original_version = "previous".to_string();
+                        let mut snapshot_id = name.to_string();
+
+                        if meta_path.exists() {
+                            if let Ok(data) = fs::read_to_string(&meta_path) {
+                                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&data) {
+                                    if let Some(sid) =
+                                        val.get("snapshot_id").and_then(|v| v.as_str())
+                                    {
+                                        snapshot_id = sid.to_string();
+                                    }
+                                    if let Some(ver) =
+                                        val.get("original_version").and_then(|v| v.as_str())
+                                    {
+                                        original_version = ver.to_string();
+                                    }
+                                    if let Some(cat) =
+                                        val.get("created_at").and_then(|v| v.as_str())
+                                    {
+                                        if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(cat) {
+                                            snap_created_at = Some(dt.with_timezone(&chrono::Utc));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Fallback: parse timestamp from filename or file modification time
+                        let created_at = snap_created_at.unwrap_or_else(|| {
+                            // filename format: {skill_id}_YYYYmmdd_HHMMSS.tar.gz
+                            let name_without_ext = name.trim_end_matches(".tar.gz");
+                            if let Some(idx) = name_without_ext.rfind('_') {
+                                let time_str = &name_without_ext[idx + 1..];
+                                let rest = &name_without_ext[..idx];
+                                if let Some(date_idx) = rest.rfind('_') {
+                                    let date_str = &rest[date_idx + 1..];
+                                    let combined = format!("{}_{}", date_str, time_str);
+                                    if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(
+                                        &combined,
+                                        "%Y%m%d_%H%M%S",
+                                    ) {
+                                        return chrono::DateTime::from_naive_utc_and_offset(
+                                            naive,
+                                            chrono::Utc,
+                                        );
+                                    }
+                                }
+                            }
+                            if let Ok(meta) = entry.metadata() {
+                                if let Ok(mod_time) = meta.modified() {
+                                    let dt: chrono::DateTime<chrono::Utc> = mod_time.into();
+                                    return dt;
+                                }
+                            }
+                            chrono::Utc::now()
+                        });
+
+                        result.push(BackupSnapshot {
+                            snapshot_id,
+                            skill_id: skill_id.to_string(),
+                            created_at,
+                            backup_file_path: path,
+                            original_version,
+                        });
+                    }
+                }
+            }
+        }
+
+        // Sort newest first
+        result.sort_by_key(|snapshot| std::cmp::Reverse(snapshot.created_at));
+        result
+    }
+}

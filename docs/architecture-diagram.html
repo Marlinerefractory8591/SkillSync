@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkillSync - High Performance System Architecture</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #020617;
+      --card-bg: #0b1329;
+      --border: #1e293b;
+      --cyan: #22d3ee;
+      --emerald: #34d399;
+      --violet: #a78bfa;
+      --rose: #fb7185;
+      --slate: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: #f8fafc;
+      font-family: 'JetBrains Mono', monospace;
+      padding: 40px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .title-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .pulsing-dot {
+      width: 12px;
+      height: 12px;
+      background-color: var(--emerald);
+      border-radius: 50%;
+      box-shadow: 0 0 12px var(--emerald);
+      animation: pulse 2s infinite ease-in-out;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: #ffffff;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: var(--slate);
+    }
+
+    /* Diagram Card */
+    .diagram-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      overflow-x: auto;
+    }
+
+    svg {
+      display: block;
+      margin: 0 auto;
+      max-width: 100%;
+      height: auto;
+    }
+
+    /* Summary Grid */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .card-dot.cyan { background-color: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+    .card-dot.emerald { background-color: var(--emerald); box-shadow: 0 0 8px var(--emerald); }
+    .card-dot.violet { background-color: var(--violet); box-shadow: 0 0 8px var(--violet); }
+
+    .card h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #ffffff;
+    }
+
+    .card ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--slate);
+      line-height: 1.5;
+    }
+
+    .card li strong {
+      color: #e2e8f0;
+    }
+
+    /* Footer */
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: #64748b;
+      border-top: 1px solid var(--border);
+      padding-top: 20px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="title-row">
+        <div class="pulsing-dot"></div>
+        <h1>SkillSync Architecture Diagram</h1>
+      </div>
+      <p class="subtitle">Tauri v2 Native Desktop Process • React 19 WebView • Async libgit2 Engine</p>
+    </header>
+
+    <!-- Main Diagram SVG -->
+    <div class="diagram-card">
+      <svg width="1100" height="680" viewBox="0 0 1100 680" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <!-- Subtle Grid Pattern -->
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+          </pattern>
+
+          <!-- Arrow Marker -->
+          <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 8 5 L 0 9 z" fill="#94a3b8"/>
+          </marker>
+          <marker id="arrow-cyan" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 8 5 L 0 9 z" fill="#22d3ee"/>
+          </marker>
+          <marker id="arrow-emerald" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 8 5 L 0 9 z" fill="#34d399"/>
+          </marker>
+          <marker id="arrow-rose" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1 L 8 5 L 0 9 z" fill="#fb7185"/>
+          </marker>
+        </defs>
+
+        <!-- Background -->
+        <rect width="1100" height="680" fill="url(#grid)"/>
+
+        <!-- ================= BOUNDARIES ================= -->
+        <!-- Frontend Boundary -->
+        <rect x="50" y="30" width="1000" height="130" rx="12" fill="rgba(8, 51, 68, 0.15)" stroke="#22d3ee" stroke-width="1" stroke-dasharray="6,4"/>
+        <text x="70" y="55" fill="#22d3ee" font-size="11" font-weight="600">LAYER 1: PRESENTATION (WEBVIEW - REACT 19 + TAILWIND + SHADCN)</text>
+
+        <!-- IPC Boundary -->
+        <rect x="50" y="180" width="1000" height="50" rx="8" fill="rgba(136, 19, 55, 0.15)" stroke="#fb7185" stroke-width="1.2" stroke-dasharray="4,4"/>
+        <text x="70" y="210" fill="#fb7185" font-size="11" font-weight="600">TAURI v2 SECURITY BOUNDARY & TYPE-SAFE IPC BRIDGE (COMMANDS + EVENT EMISSION)</text>
+
+        <!-- Rust Core Boundary -->
+        <rect x="50" y="250" width="1000" height="260" rx="12" fill="rgba(6, 78, 59, 0.15)" stroke="#34d399" stroke-width="1" stroke-dasharray="6,4"/>
+        <text x="70" y="275" fill="#34d399" font-size="11" font-weight="600">LAYER 2: NATIVE CORE ENGINE (RUST - TOKIO RUNTIME + LIBGIT2)</text>
+
+        <!-- OS & External Layer Boundary -->
+        <rect x="50" y="530" width="1000" height="100" rx="12" fill="rgba(30, 41, 59, 0.2)" stroke="#94a3b8" stroke-width="1" stroke-dasharray="6,4"/>
+        <text x="70" y="555" fill="#94a3b8" font-size="11" font-weight="600">LAYER 3: HOST OS (FILESYSTEM + NOTIFICATION CENTER) & REMOTE GIT HOSTS</text>
+
+        <!-- ================= ARROWS ================= -->
+        <line x1="200" y1="130" x2="200" y2="180" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+        <line x1="550" y1="130" x2="550" y2="180" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+        <line x1="900" y1="130" x2="900" y2="180" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arrow-cyan)"/>
+
+        <line x1="200" y1="230" x2="200" y2="300" stroke="#fb7185" stroke-width="1.5" marker-end="url(#arrow-rose)"/>
+        <line x1="550" y1="230" x2="550" y2="300" stroke="#fb7185" stroke-width="1.5" marker-end="url(#arrow-rose)"/>
+        <line x1="900" y1="230" x2="900" y2="300" stroke="#fb7185" stroke-width="1.5" marker-end="url(#arrow-rose)"/>
+
+        <line x1="200" y1="360" x2="200" y2="560" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <line x1="550" y1="360" x2="550" y2="400" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <line x1="550" y1="460" x2="550" y2="560" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+        <line x1="900" y1="360" x2="900" y2="560" stroke="#34d399" stroke-width="1.5" marker-end="url(#arrow-emerald)"/>
+
+        <!-- ================= COMPONENTS ================= -->
+        <!-- Layer 1: Frontend Components -->
+        <!-- UI Dashboard -->
+        <rect x="90" y="70" width="220" height="60" rx="6" fill="#0f172a"/>
+        <rect x="90" y="70" width="220" height="60" rx="6" fill="rgba(8, 51, 68, 0.6)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="200" y="96" fill="#f8fafc" font-size="12" font-weight="600" text-anchor="middle">Dashboard & Table</text>
+        <text x="200" y="114" fill="#94a3b8" font-size="9" text-anchor="middle">Virtualizer • Filters • Search</text>
+
+        <!-- UI State & Store -->
+        <rect x="440" y="70" width="220" height="60" rx="6" fill="#0f172a"/>
+        <rect x="440" y="70" width="220" height="60" rx="6" fill="rgba(8, 51, 68, 0.6)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="550" y="96" fill="#f8fafc" font-size="12" font-weight="600" text-anchor="middle">Zustand Store + Immer</text>
+        <text x="550" y="114" fill="#94a3b8" font-size="9" text-anchor="middle">Optimistic Updates • Cache</text>
+
+        <!-- UI Modals & Settings -->
+        <rect x="790" y="70" width="220" height="60" rx="6" fill="#0f172a"/>
+        <rect x="790" y="70" width="220" height="60" rx="6" fill="rgba(8, 51, 68, 0.6)" stroke="#22d3ee" stroke-width="1.5"/>
+        <text x="900" y="96" fill="#f8fafc" font-size="12" font-weight="600" text-anchor="middle">Detail Modal & Settings</text>
+        <text x="900" y="114" fill="#94a3b8" font-size="9" text-anchor="middle">Changelog • Rollback Trigger</text>
+
+        <!-- Layer 2: Rust Engine Components -->
+        <!-- SkillDetector -->
+        <rect x="90" y="300" width="220" height="60" rx="6" fill="#0f172a"/>
+        <rect x="90" y="300" width="220" height="60" rx="6" fill="rgba(6, 78, 59, 0.6)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="200" y="326" fill="#f8fafc" font-size="12" font-weight="600" text-anchor="middle">SkillDetector Engine</text>
+        <text x="200" y="344" fill="#94a3b8" font-size="9" text-anchor="middle">Walkdir • Markers • notify</text>
+
+        <!-- UpdateOrchestrator -->
+        <rect x="440" y="300" width="220" height="60" rx="6" fill="#0f172a"/>
+        <rect x="440" y="300" width="220" height="60" rx="6" fill="rgba(6, 78, 59, 0.6)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="550" y="326" fill="#f8fafc" font-size="12" font-weight="600" text-anchor="middle">UpdateOrchestrator</text>
+        <text x="550" y="344" fill="#94a3b8" font-size="9" text-anchor="middle">Atomic State Machine • Backup</text>
+
+        <!-- GitManager -->
+        <rect x="440" y="400" width="220" height="60" rx="6" fill="#0f172a"/>
+        <rect x="440" y="400" width="220" height="60" rx="6" fill="rgba(76, 29, 149, 0.6)" stroke="#a78bfa" stroke-width="1.5"/>
+        <text x="550" y="426" fill="#f8fafc" font-size="12" font-weight="600" text-anchor="middle">GitManager (libgit2)</text>
+        <text x="550" y="444" fill="#94a3b8" font-size="9" text-anchor="middle">Fetch • Checkout • SemVer</text>
+
+        <!-- Config & Notifications -->
+        <rect x="790" y="300" width="220" height="60" rx="6" fill="#0f172a"/>
+        <rect x="790" y="300" width="220" height="60" rx="6" fill="rgba(6, 78, 59, 0.6)" stroke="#34d399" stroke-width="1.5"/>
+        <text x="900" y="326" fill="#f8fafc" font-size="12" font-weight="600" text-anchor="middle">Config & Notifications</text>
+        <text x="900" y="344" fill="#94a3b8" font-size="9" text-anchor="middle">JSON Store • Action Center</text>
+
+        <!-- Layer 3: External & OS Components -->
+        <!-- Local FS -->
+        <rect x="90" y="560" width="220" height="50" rx="6" fill="#0f172a"/>
+        <rect x="90" y="560" width="220" height="50" rx="6" fill="rgba(30, 41, 59, 0.7)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="200" y="583" fill="#f8fafc" font-size="11" font-weight="600" text-anchor="middle">Local Skill Directories</text>
+        <text x="200" y="598" fill="#94a3b8" font-size="8" text-anchor="middle">~/.config/skills • ~/.claude/skills</text>
+
+        <!-- Remote Git -->
+        <rect x="440" y="560" width="220" height="50" rx="6" fill="#0f172a"/>
+        <rect x="440" y="560" width="220" height="50" rx="6" fill="rgba(30, 41, 59, 0.7)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="550" y="583" fill="#f8fafc" font-size="11" font-weight="600" text-anchor="middle">Remote Upstream Repos</text>
+        <text x="550" y="598" fill="#94a3b8" font-size="8" text-anchor="middle">GitHub • GitLab • Private Git</text>
+
+        <!-- OS Tray & Notif -->
+        <rect x="790" y="560" width="220" height="50" rx="6" fill="#0f172a"/>
+        <rect x="790" y="560" width="220" height="50" rx="6" fill="rgba(30, 41, 59, 0.7)" stroke="#94a3b8" stroke-width="1.5"/>
+        <text x="900" y="583" fill="#f8fafc" font-size="11" font-weight="600" text-anchor="middle">OS Integration & Tray</text>
+        <text x="900" y="598" fill="#94a3b8" font-size="8" text-anchor="middle">FSEvents • Mac Notif • Win Action</text>
+
+        <!-- ================= LEGEND ================= -->
+        <g transform="translate(150, 645)">
+          <rect x="0" y="0" width="12" height="12" rx="2" fill="rgba(8, 51, 68, 0.6)" stroke="#22d3ee" stroke-width="1.5"/>
+          <text x="20" y="10" fill="#94a3b8" font-size="10">Frontend (Webview)</text>
+
+          <rect x="180" y="0" width="12" height="12" rx="2" fill="rgba(6, 78, 59, 0.6)" stroke="#34d399" stroke-width="1.5"/>
+          <text x="200" y="10" fill="#94a3b8" font-size="10">Rust Core (Native)</text>
+
+          <rect x="360" y="0" width="12" height="12" rx="2" fill="rgba(76, 29, 149, 0.6)" stroke="#a78bfa" stroke-width="1.5"/>
+          <text x="380" y="10" fill="#94a3b8" font-size="10">Git & Storage Engine</text>
+
+          <rect x="550" y="0" width="12" height="12" rx="2" fill="rgba(136, 19, 55, 0.6)" stroke="#fb7185" stroke-width="1.5"/>
+          <text x="570" y="10" fill="#94a3b8" font-size="10">Security & IPC Bridge</text>
+
+          <rect x="740" y="0" width="12" height="12" rx="2" fill="rgba(30, 41, 59, 0.7)" stroke="#94a3b8" stroke-width="1.5"/>
+          <text x="760" y="10" fill="#94a3b8" font-size="10">Operating System / External</text>
+        </g>
+      </svg>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="summary-grid">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot cyan"></div>
+          <h3>Declarative Presentation Layer</h3>
+        </div>
+        <ul>
+          <li>• <strong>React 19 + TypeScript:</strong> Strict static type checking with zero any-casting.</li>
+          <li>• <strong>Tailwind CSS v4 & shadcn/ui:</strong> Accessible primitives complying with WCAG 2.1 AA.</li>
+          <li>• <strong>Zustand & Immer:</strong> Sub-100ms optimistic updates and instantaneous UI feedback.</li>
+          <li>• <strong>TanStack Virtual:</strong> 60/120 FPS rendering across 1,000+ indexed agent skills.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot emerald"></div>
+          <h3>Native Rust Core Performance</h3>
+        </div>
+        <ul>
+          <li>• <strong>Low Memory Footprint:</strong> 35-50 MB RAM idle vs 200+ MB in Electron alternatives.</li>
+          <li>• <strong>Async Concurrency:</strong> Tokio Semaphore pool regulating 3-10 parallel update tasks.</li>
+          <li>• <strong>libgit2 Integration:</strong> Subprocess-free Git checkout, fetch, and tag analysis.</li>
+          <li>• <strong>Reactive File Watcher:</strong> Inotify / FSEvents kernel alerts without CPU polling.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-dot violet"></div>
+          <h3>Atomic Safety & Zero Data Loss</h3>
+        </div>
+        <ul>
+          <li>• <strong>7-Stage Atomic Protocol:</strong> Guaranteed pre-update snapshot compression.</li>
+          <li>• <strong>Sub-Second Instant Rollback:</strong> Restores prior working state on any Git conflict.</li>
+          <li>• <strong>Dirty Worktree Protection:</strong> Blocks updates on uncommitted local code edits.</li>
+          <li>• <strong>Audit Log Retention:</strong> Configurable 14 to 30 day point-in-time recovery.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <span>SkillSync v1.0.0 Architecture Blueprint</span>
+      <span>Designed for High-Reliability AI Agent Toolchains</span>
+    </footer>
+  </div>
+
+</body>
+</html>

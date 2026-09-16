@@ -1,0 +1,199 @@
+name: SkillSync CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  NODE_VERSION: '20'
+  RUST_VERSION: 'stable'
+
+permissions:
+  contents: write
+
+jobs:
+  # =========================================================================
+  # 1. LINT, STATIC CODE ANALYSIS & FORMATTING
+  # =========================================================================
+  lint-and-check:
+    name: Lint & Static Code Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Frontend Dependencies
+        run: npm ci
+
+      - name: Run ESLint & TypeScript Check
+        run: |
+          npm run lint
+          npx tsc --noEmit
+
+      - name: Verify Prettier Code Formatting
+        run: npx prettier --check "src/**/*.{ts,tsx,css,json}"
+
+      - name: Setup Rust Stable Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: rustfmt, clippy
+
+      - name: Rust Cache Setup
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Verify Rust Formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+
+      - name: Run Cargo Clippy (Strict Zero-Warning Policy)
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+      - name: Cargo Security Vulnerability Audit
+        run: |
+          cargo install cargo-audit
+          cargo audit
+
+  # =========================================================================
+  # 2. AUTOMATED UNIT & INTEGRATION TESTS
+  # =========================================================================
+  test:
+    name: Unit & Integration Tests (${{ matrix.os }})
+    needs: lint-and-check
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Frontend Dependencies
+        run: npm ci
+
+      - name: Run Frontend Tests with Coverage (Vitest)
+        run: npm run test:coverage
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Rust Cache Setup
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Run Rust Backend Tests (Unit & Integration)
+        run: cargo test --manifest-path src-tauri/Cargo.toml --verbose --all-targets
+
+  # =========================================================================
+  # 3. MULTI-PLATFORM DESKTOP BUILD (.DMG / .MSI / .EXE)
+  # =========================================================================
+  build-binaries:
+    name: Build Native Package (${{ matrix.platform }})
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            args: '--target universal-apple-darwin'
+            bundle_ext: 'dmg'
+          - platform: 'windows-latest'
+            args: '--target x86_64-pc-windows-msvc'
+            bundle_ext: 'msi'
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Frontend Dependencies
+        run: npm ci
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: ${{ matrix.platform == 'macos-latest' && 'x86_64-apple-darwin,aarch64-apple-darwin' || 'x86_64-pc-windows-msvc' }}
+
+      - name: Rust Cache Setup
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Build Tauri Desktop Application
+        run: npm run tauri build -- ${{ matrix.args }}
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: SkillSync-${{ matrix.platform }}
+          path: src-tauri/target/**/bundle/*/*
+
+  # =========================================================================
+  # 4. RELEASE AUTOMATION & CHECKSUMS (ONLY ON TAGGED RELEASES)
+  # =========================================================================
+  publish-release:
+    name: Publish Official GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Compute SHA-256 Checksums
+        run: |
+          cd release-assets
+          find . -type f \( -name "*.dmg" -o -name "*.msi" -o -name "*.exe" -o -name "*.tar.gz" \) -exec sha256sum {} + > checksums.sha256
+          cat checksums.sha256
+
+      - name: Generate Changelog with Conventional Commits
+        id: changelog
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/**/*.dmg
+            release-assets/**/*.msi
+            release-assets/**/*.exe
+            release-assets/**/*.tar.gz
+            release-assets/checksums.sha256
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

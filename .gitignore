@@ -1,0 +1,40 @@
+# Node dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+dist/
+dist-ssr/
+dist-release/
+*.local
+
+# Rust & Cargo targets
+src-tauri/target/
+src-tauri/gen/
+
+# This release targets macOS and Windows only; mobile icon catalogs are generated on demand.
+src-tauri/icons/android/
+src-tauri/icons/ios/
+
+# Local quality and editor artifacts
+coverage/
+.eslintcache
+.prettier-cache
+.idea/
+.vscode/
+*.swp
+
+# Local SEO-analysis cache
+.seo-cache/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.*
+!.env.example
