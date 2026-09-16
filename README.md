@@ -48,8 +48,8 @@ SkillSync is an open-source, cross-platform desktop application powered by **Tau
 
 ### Step 1: Install or Run SkillSync
 Download the pre-compiled installer for your operating system from the [Releases](https://github.com/tomaszboloz/SkillSync/releases) page:
-- **macOS:** Download `SkillSync_1.0.0_universal.dmg` or unpack `SkillSync_1.0.0_macos.tar.gz`.
-- **Windows:** Run `SkillSync_1.0.0_x64_en-US.msi` or `SkillSync_1.0.0_x64-setup.exe`.
+- **macOS:** Download the `SkillSync_*.dmg` installer that matches the published release.
+- **Windows:** Run the published `SkillSync_*.msi` or `SkillSync_*.exe` installer.
 
 #### macOS security and developer signature
 

@@ -125,10 +125,8 @@ jobs:
       matrix:
         include:
           - platform: 'macos-latest'
-            args: '--target universal-apple-darwin'
             bundle_ext: 'dmg'
           - platform: 'windows-latest'
-            args: '--target x86_64-pc-windows-msvc'
             bundle_ext: 'msi'
     runs-on: ${{ matrix.platform }}
     steps:
@@ -148,7 +146,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ env.RUST_VERSION }}
-          targets: ${{ matrix.platform == 'macos-latest' && 'x86_64-apple-darwin,aarch64-apple-darwin' || 'x86_64-pc-windows-msvc' }}
 
       - name: Rust Cache Setup
         uses: Swatinem/rust-cache@v2
@@ -156,7 +153,7 @@ jobs:
           workspaces: src-tauri -> target
 
       - name: Build Tauri Desktop Application
-        run: npm run tauri build -- ${{ matrix.args }}
+        run: npm run tauri build
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
@@ -186,6 +183,13 @@ jobs:
           cd release-assets
           find . -type f \( -name "*.dmg" -o -name "*.msi" -o -name "*.exe" -o -name "*.tar.gz" \) -exec sha256sum {} + > checksums.sha256
           cat checksums.sha256
+
+      - name: Verify Mandatory Release Assets
+        run: |
+          test -n "$(find release-assets -type f -name '*.dmg' -print -quit)"
+          test -n "$(find release-assets -type f -name '*.msi' -print -quit)"
+          test -n "$(find release-assets -type f -name '*.exe' -print -quit)"
+          test -s release-assets/checksums.sha256
 
       - name: Generate Changelog with Conventional Commits
         id: changelog
