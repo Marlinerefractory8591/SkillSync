@@ -72,7 +72,7 @@ jobs:
       - name: Cargo Security Vulnerability Audit
         run: |
           cargo install cargo-audit
-          cargo audit
+          cargo audit --file src-tauri/Cargo.lock
 
   # =========================================================================
   # 2. AUTOMATED UNIT & INTEGRATION TESTS
