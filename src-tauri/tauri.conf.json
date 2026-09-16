@@ -35,8 +35,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "category": "DeveloperTool"
-    ,"publisher": "Tomasz Bołoz"
-    ,"copyright": "Copyright © 2026 Tomasz Bołoz. MIT License."
+    "category": "DeveloperTool",
+    "publisher": "Tomasz Bołoz",
+    "copyright": "Copyright © 2026 Tomasz Bołoz. MIT License.",
+    "windows": {
+      "wix": {
+        "language": "pl-PL"
+      }
+    }
   }
 }
