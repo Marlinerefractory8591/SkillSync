@@ -1,12 +1,12 @@
-import React, { useEffect } from 'react';
-import { useSkillStore } from './store/useSkillStore';
-import { Navbar } from './components/Navbar';
-import { SkillList } from './components/SkillList';
-import { SkillDetailModal } from './components/SkillDetailModal';
-import { SettingsModal } from './components/SettingsModal';
-import { UpdateCenterModal } from './components/UpdateCenterModal';
-import { DirtyWorktreeConfirmation } from './components/DirtyWorktreeConfirmation';
-import { AlertCircle, X } from 'lucide-react';
+import React, { useEffect } from "react";
+import { useSkillStore } from "./store/useSkillStore";
+import { Navbar } from "./components/Navbar";
+import { SkillList } from "./components/SkillList";
+import { SkillDetailModal } from "./components/SkillDetailModal";
+import { SettingsModal } from "./components/SettingsModal";
+import { UpdateCenterModal } from "./components/UpdateCenterModal";
+import { DirtyWorktreeConfirmation } from "./components/DirtyWorktreeConfirmation";
+import { AlertCircle, X } from "lucide-react";
 
 export const App: React.FC = () => {
   const { fetchSkills, loadConfig, error, theme } = useSkillStore();
@@ -19,10 +19,10 @@ export const App: React.FC = () => {
   // Ensure root theme class is synced
   useEffect(() => {
     const root = document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
+    if (theme === "dark") {
+      root.classList.add("dark");
     } else {
-      root.classList.remove('dark');
+      root.classList.remove("dark");
     }
   }, [theme]);
 

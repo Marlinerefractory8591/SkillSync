@@ -1,8 +1,8 @@
-import { create } from 'zustand';
-import { immer } from 'zustand/middleware/immer';
-import { SkillMetadata, AppConfig } from '../types/skillsync';
-import { api } from '../lib/ipc';
-import { Language } from '../i18n/types';
+import { create } from "zustand";
+import { immer } from "zustand/middleware/immer";
+import { SkillMetadata, AppConfig } from "../types/skillsync";
+import { api } from "../lib/ipc";
+import { Language } from "../i18n/types";
 
 interface DirtyUpdateConfirmation {
   skillId: string;
@@ -11,11 +11,11 @@ interface DirtyUpdateConfirmation {
 }
 
 export const formatError = (err: unknown, fallback: string): string => {
-  if (typeof err === 'string' && err.trim().length > 0) return err;
+  if (typeof err === "string" && err.trim().length > 0) return err;
   if (err instanceof Error) return err.message;
-  if (err && typeof err === 'object' && 'message' in err) {
+  if (err && typeof err === "object" && "message" in err) {
     const message = (err as { message?: unknown }).message;
-    if (typeof message === 'string') return message;
+    if (typeof message === "string") return message;
   }
   return fallback;
 };
@@ -27,13 +27,13 @@ interface SkillState {
   error: string | null;
   searchQuery: string;
   selectedScope: string;
-  statusFilter: 'all' | 'updates' | 'up_to_date';
+  statusFilter: "all" | "updates" | "up_to_date";
   selectedSkill: SkillMetadata | null;
   isDetailOpen: boolean;
   isSettingsOpen: boolean;
   isUpdateCenterOpen: boolean;
   config: AppConfig | null;
-  theme: 'dark' | 'light';
+  theme: "dark" | "light";
   language: Language;
   batchUpdating: boolean;
   pendingDirtyUpdate: DirtyUpdateConfirmation | null;
@@ -47,7 +47,7 @@ interface SkillState {
   fetchSkills: (forceRefresh?: boolean) => Promise<void>;
   setSearchQuery: (query: string) => void;
   setSelectedScope: (scope: string) => void;
-  setStatusFilter: (filter: 'all' | 'updates' | 'up_to_date') => void;
+  setStatusFilter: (filter: "all" | "updates" | "up_to_date") => void;
   openDetail: (skill: SkillMetadata) => void;
   closeDetail: () => void;
   openSettings: () => void;
@@ -61,7 +61,7 @@ interface SkillState {
   checkoutCustomVersion: (skillId: string, targetRef: string) => Promise<void>;
   batchUpdateAll: () => Promise<void>;
   rollbackSkill: (skillId: string, snapshotId?: string) => Promise<void>;
-  setTheme: (theme: 'dark' | 'light') => void;
+  setTheme: (theme: "dark" | "light") => void;
   toggleTheme: () => void;
   setLanguage: (lang: Language) => void;
   loadConfig: () => Promise<void>;
@@ -74,16 +74,19 @@ export const useSkillStore = create<SkillState>()(
     isLoading: true,
     isScanning: false,
     error: null,
-    searchQuery: '',
-    selectedScope: 'all',
-    statusFilter: 'all',
+    searchQuery: "",
+    selectedScope: "all",
+    statusFilter: "all",
     selectedSkill: null,
     isDetailOpen: false,
     isSettingsOpen: false,
     isUpdateCenterOpen: false,
     config: null,
-    theme: 'dark',
-    language: (typeof window !== 'undefined' && (localStorage.getItem('skillsync_lang') as Language)) || 'pl',
+    theme: "dark",
+    language:
+      (typeof window !== "undefined" &&
+        (localStorage.getItem("skillsync_lang") as Language)) ||
+      "pl",
     batchUpdating: false,
     pendingDirtyUpdate: null,
     batchProgress: {
@@ -105,7 +108,7 @@ export const useSkillStore = create<SkillState>()(
         });
       } catch (err: unknown) {
         set((state) => {
-          state.error = formatError(err, 'Failed to scan skills');
+          state.error = formatError(err, "Failed to scan skills");
           state.isLoading = false;
           state.isScanning = false;
         });
@@ -124,7 +127,7 @@ export const useSkillStore = create<SkillState>()(
       });
     },
 
-    setStatusFilter: (filter: 'all' | 'updates' | 'up_to_date') => {
+    setStatusFilter: (filter: "all" | "updates" | "up_to_date") => {
       set((state) => {
         state.statusFilter = filter;
       });
@@ -172,10 +175,10 @@ export const useSkillStore = create<SkillState>()(
       set((state) => {
         const idx = state.skills.findIndex((s) => s.id === skillId);
         if (idx !== -1) {
-          state.skills[idx].status = 'updating';
+          state.skills[idx].status = "updating";
         }
         if (state.selectedSkill?.id === skillId) {
-          state.selectedSkill.status = 'updating';
+          state.selectedSkill.status = "updating";
         }
       });
 
@@ -191,15 +194,17 @@ export const useSkillStore = create<SkillState>()(
           }
         });
       } catch (err: unknown) {
-        const message = formatError(err, 'Update failed');
-        const requiresConfirmation = !force && message.includes('Katalog roboczy zawiera niezacommitowane zmiany');
+        const message = formatError(err, "Update failed");
+        const requiresConfirmation =
+          !force &&
+          message.includes("Katalog roboczy zawiera niezacommitowane zmiany");
         set((state) => {
           const idx = state.skills.findIndex((s) => s.id === skillId);
           if (idx !== -1) {
-            state.skills[idx].status = 'error';
+            state.skills[idx].status = "error";
           }
           if (state.selectedSkill?.id === skillId) {
-            state.selectedSkill.status = 'error';
+            state.selectedSkill.status = "error";
           }
           state.error = requiresConfirmation
             ? `Aktualizacja wymaga decyzji: ${message}`
@@ -246,7 +251,7 @@ export const useSkillStore = create<SkillState>()(
         });
       } catch (err: unknown) {
         set((state) => {
-          state.error = formatError(err, 'GitHub check failed');
+          state.error = formatError(err, "GitHub check failed");
         });
       }
     },
@@ -255,7 +260,7 @@ export const useSkillStore = create<SkillState>()(
       set((state) => {
         const idx = state.skills.findIndex((s) => s.id === skillId);
         if (idx !== -1) {
-          state.skills[idx].status = 'updating';
+          state.skills[idx].status = "updating";
         }
       });
 
@@ -274,9 +279,9 @@ export const useSkillStore = create<SkillState>()(
         set((state) => {
           const idx = state.skills.findIndex((s) => s.id === skillId);
           if (idx !== -1) {
-            state.skills[idx].status = 'error';
+            state.skills[idx].status = "error";
           }
-          state.error = formatError(err, 'Checkout failed');
+          state.error = formatError(err, "Checkout failed");
         });
       }
     },
@@ -293,7 +298,7 @@ export const useSkillStore = create<SkillState>()(
         };
         for (const skill of outdated) {
           const idx = state.skills.findIndex((s) => s.id === skill.id);
-          if (idx !== -1) state.skills[idx].status = 'updating';
+          if (idx !== -1) state.skills[idx].status = "updating";
         }
       });
 
@@ -312,22 +317,27 @@ export const useSkillStore = create<SkillState>()(
           });
         } catch (e) {
           console.error(`Failed to update ${skill.name}:`, e);
-          const message = formatError(e, `Nie udało się zaktualizować ${skill.name}`);
+          const message = formatError(
+            e,
+            `Nie udało się zaktualizować ${skill.name}`,
+          );
           set((state) => {
             const idx = state.skills.findIndex((s) => s.id === skill.id);
             if (idx !== -1) {
-              state.skills[idx].status = 'error';
+              state.skills[idx].status = "error";
               // Keep the update actionable after the user resolves the
               // underlying cause (for example, a dirty Git worktree).
               state.skills[idx].updateAvailable = true;
             }
             if (state.selectedSkill?.id === skill.id) {
-              state.selectedSkill.status = 'error';
+              state.selectedSkill.status = "error";
               state.selectedSkill.updateAvailable = true;
             }
             state.error = message;
             if (
-              message.includes('Katalog roboczy zawiera niezacommitowane zmiany') &&
+              message.includes(
+                "Katalog roboczy zawiera niezacommitowane zmiany",
+              ) &&
               state.pendingDirtyUpdate === null
             ) {
               state.pendingDirtyUpdate = {
@@ -353,28 +363,28 @@ export const useSkillStore = create<SkillState>()(
         await get().fetchSkills(true);
       } catch (err: unknown) {
         set((state) => {
-          state.error = formatError(err, 'Rollback failed');
+          state.error = formatError(err, "Rollback failed");
         });
       }
     },
 
-    setTheme: (theme: 'dark' | 'light') => {
+    setTheme: (theme: "dark" | "light") => {
       set((state) => {
         state.theme = theme;
       });
-      if (typeof document !== 'undefined') {
+      if (typeof document !== "undefined") {
         const root = document.documentElement;
-        if (theme === 'dark') {
-          root.classList.add('dark');
+        if (theme === "dark") {
+          root.classList.add("dark");
         } else {
-          root.classList.remove('dark');
+          root.classList.remove("dark");
         }
       }
     },
 
     toggleTheme: () => {
       const current = get().theme;
-      const next = current === 'dark' ? 'light' : 'dark';
+      const next = current === "dark" ? "light" : "dark";
       get().setTheme(next);
     },
 
@@ -382,8 +392,8 @@ export const useSkillStore = create<SkillState>()(
       set((state) => {
         state.language = lang;
       });
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('skillsync_lang', lang);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("skillsync_lang", lang);
       }
     },
 
@@ -394,7 +404,7 @@ export const useSkillStore = create<SkillState>()(
           state.config = config;
         });
       } catch (e) {
-        console.error('Failed to load config:', e);
+        console.error("Failed to load config:", e);
       }
     },
 
@@ -405,8 +415,8 @@ export const useSkillStore = create<SkillState>()(
           state.config = config;
         });
       } catch (e) {
-        console.error('Failed to save config:', e);
+        console.error("Failed to save config:", e);
       }
     },
-  }))
+  })),
 );

@@ -1,4 +1,4 @@
-export type Language = 'en' | 'pl' | 'de' | 'es' | 'fr' | 'ja' | 'zh';
+export type Language = "en" | "pl" | "de" | "es" | "fr" | "ja" | "zh";
 
 export interface Translations {
   appName: string;

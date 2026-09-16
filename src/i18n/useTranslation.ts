@@ -1,6 +1,6 @@
-import { useSkillStore } from '../store/useSkillStore';
-import { Translations } from './types';
-import { translations } from './index';
+import { useSkillStore } from "../store/useSkillStore";
+import { Translations } from "./types";
+import { translations } from "./index";
 
 export type TFunction = Translations & ((key: keyof Translations) => string);
 
@@ -8,7 +8,8 @@ export const useTranslation = () => {
   const language = useSkillStore((state) => state.language);
   const setLanguage = useSkillStore((state) => state.setLanguage);
 
-  const currentStrings: Translations = translations[language] || translations.en;
+  const currentStrings: Translations =
+    translations[language] || translations.en;
 
   const t = ((key: keyof Translations): string => {
     return currentStrings[key] ?? (key as string);
@@ -19,4 +20,3 @@ export const useTranslation = () => {
 
   return { t, language, setLanguage };
 };
-

@@ -1,22 +1,23 @@
-export type AgentScope = 'global' | 'codex' | 'claude' | 'cursor' | 'antigravity' | string;
+export type AgentScope =
+  "global" | "codex" | "claude" | "cursor" | "antigravity" | string;
 
 export type SkillStatus =
-  | 'up_to_date'
-  | 'update_available'
-  | 'modified_locally'
-  | 'corrupted'
-  | 'updating'
-  | 'error';
+  | "up_to_date"
+  | "update_available"
+  | "modified_locally"
+  | "corrupted"
+  | "updating"
+  | "error";
 
 export type UpdateStage =
-  | 'validating'
-  | 'backing_up'
-  | 'fetching'
-  | 'checking_out'
-  | 'verifying'
-  | 'rolling_back'
-  | 'completed'
-  | 'failed';
+  | "validating"
+  | "backing_up"
+  | "fetching"
+  | "checking_out"
+  | "verifying"
+  | "rolling_back"
+  | "completed"
+  | "failed";
 
 export interface SkillMetadata {
   id: string;
@@ -69,8 +70,8 @@ export interface AppConfig {
     defaultInstallDirectory: string;
   };
   updates: {
-    autoCheckFrequency: 'hourly' | 'every_6_hours' | 'daily' | 'manual';
-    autoInstall: 'ask' | 'always' | 'never';
+    autoCheckFrequency: "hourly" | "every_6_hours" | "daily" | "manual";
+    autoInstall: "ask" | "always" | "never";
     concurrencyLimit: number;
     backupRetentionDays: number;
     allowPrerelease: boolean;
@@ -83,13 +84,13 @@ export interface AppConfig {
     sound: boolean;
   };
   appearance: {
-    theme: 'system' | 'dark' | 'light';
+    theme: "system" | "dark" | "light";
     accentColor: string;
     reducedMotion: boolean;
     compactView: boolean;
   };
   advanced: {
-    logLevel: 'debug' | 'info' | 'warn' | 'error';
+    logLevel: "debug" | "info" | "warn" | "error";
     gitTimeoutSeconds: number;
     customGitBinary: string | null;
     cacheTtlMinutes: number;

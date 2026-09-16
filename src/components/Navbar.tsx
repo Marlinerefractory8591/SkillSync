@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { useSkillStore } from '../store/useSkillStore';
-import { useTranslation, supportedLanguages } from '../i18n';
+import React, { useEffect, useState } from "react";
+import { useSkillStore } from "../store/useSkillStore";
+import { useTranslation, supportedLanguages } from "../i18n";
 import {
   Search,
   RefreshCw,
@@ -12,7 +12,7 @@ import {
   ArrowUpCircle,
   Globe,
   Check,
-} from 'lucide-react';
+} from "lucide-react";
 
 export const Navbar: React.FC = () => {
   const { t, language, setLanguage } = useTranslation();
@@ -42,38 +42,40 @@ export const Navbar: React.FC = () => {
   // Keyboard shortcut listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
       const cmdKey = isMac ? e.metaKey : e.ctrlKey;
 
-      if (cmdKey && e.key.toLowerCase() === 'r') {
+      if (cmdKey && e.key.toLowerCase() === "r") {
         e.preventDefault();
         fetchSkills(true);
-      } else if (cmdKey && e.key.toLowerCase() === 'u') {
+      } else if (cmdKey && e.key.toLowerCase() === "u") {
         e.preventDefault();
         batchUpdateAll();
-      } else if (cmdKey && e.key === ',') {
+      } else if (cmdKey && e.key === ",") {
         e.preventDefault();
         openSettings();
-      } else if (e.key === '/' && document.activeElement?.tagName !== 'INPUT') {
+      } else if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
         e.preventDefault();
-        document.getElementById('search-input')?.focus();
+        document.getElementById("search-input")?.focus();
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, [fetchSkills, batchUpdateAll, openSettings]);
 
   const scopes = [
-    { id: 'all', label: t.allScopes },
-    { id: 'global', label: 'Global' },
-    { id: 'codex', label: 'Codex' },
-    { id: 'claude', label: 'Claude Code' },
-    { id: 'cursor', label: 'Cursor' },
-    { id: 'antigravity', label: 'Antigravity' },
+    { id: "all", label: t.allScopes },
+    { id: "global", label: "Global" },
+    { id: "codex", label: "Codex" },
+    { id: "claude", label: "Claude Code" },
+    { id: "cursor", label: "Cursor" },
+    { id: "antigravity", label: "Antigravity" },
   ];
 
-  const currentLangObj = supportedLanguages.find((l) => l.code === language) || supportedLanguages[0];
+  const currentLangObj =
+    supportedLanguages.find((l) => l.code === language) ||
+    supportedLanguages[0];
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-md transition-colors">
@@ -113,7 +115,7 @@ export const Navbar: React.FC = () => {
             />
             {searchQuery && (
               <button
-                onClick={() => setSearchQuery('')}
+                onClick={() => setSearchQuery("")}
                 className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
               >
                 ✕
@@ -130,7 +132,9 @@ export const Navbar: React.FC = () => {
               title={`${t.rescan} (Cmd/Ctrl + R)`}
               className="flex items-center gap-1.5 h-9 px-3 text-xs font-medium rounded-lg border border-border bg-card/50 hover:bg-card text-foreground transition-all disabled:opacity-50"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin text-primary' : ''}`} />
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${isScanning ? "animate-spin text-primary" : ""}`}
+              />
               <span className="hidden sm:inline">{t.rescan}</span>
             </button>
 
@@ -161,7 +165,9 @@ export const Navbar: React.FC = () => {
               >
                 <Globe className="w-3.5 h-3.5 text-muted-foreground" />
                 <span>{currentLangObj.flag}</span>
-                <span className="uppercase font-mono text-[10px]">{currentLangObj.code}</span>
+                <span className="uppercase font-mono text-[10px]">
+                  {currentLangObj.code}
+                </span>
               </button>
 
               {isLangOpen && (
@@ -174,14 +180,18 @@ export const Navbar: React.FC = () => {
                       key={lang.code}
                       onClick={() => setLanguage(lang.code)}
                       className={`w-full px-3 py-1.5 text-left text-xs flex items-center justify-between hover:bg-muted transition-colors ${
-                        language === lang.code ? 'text-primary font-semibold bg-primary/10' : 'text-foreground'
+                        language === lang.code
+                          ? "text-primary font-semibold bg-primary/10"
+                          : "text-foreground"
                       }`}
                     >
                       <span className="flex items-center gap-2">
                         <span>{lang.flag}</span>
                         <span>{lang.label}</span>
                       </span>
-                      {language === lang.code && <Check className="w-3.5 h-3.5 text-primary" />}
+                      {language === lang.code && (
+                        <Check className="w-3.5 h-3.5 text-primary" />
+                      )}
                     </button>
                   ))}
                 </div>
@@ -200,10 +210,14 @@ export const Navbar: React.FC = () => {
             {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
-              title={theme === 'dark' ? t.lightTheme : t.darkTheme}
+              title={theme === "dark" ? t.lightTheme : t.darkTheme}
               className="w-9 h-9 flex items-center justify-center rounded-lg border border-border bg-card/50 hover:bg-card text-foreground transition-all"
             >
-              {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-700" />}
+              {theme === "dark" ? (
+                <Sun className="w-4 h-4 text-amber-400" />
+              ) : (
+                <Moon className="w-4 h-4 text-slate-700" />
+              )}
             </button>
 
             {/* Settings */}
@@ -222,22 +236,22 @@ export const Navbar: React.FC = () => {
           {/* Status Filter Tabs (Wszystkie / Wymagane aktualizacje / Zaktualizowane) */}
           <div className="flex items-center gap-1.5 p-0.5 rounded-lg bg-card/60 border border-border">
             <button
-              onClick={() => setStatusFilter('all')}
+              onClick={() => setStatusFilter("all")}
               className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                statusFilter === 'all'
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
+                statusFilter === "all"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {t.statusAll} ({totalSkills})
             </button>
 
             <button
-              onClick={() => setStatusFilter('updates')}
+              onClick={() => setStatusFilter("updates")}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                statusFilter === 'updates'
-                  ? 'bg-amber-500 text-black shadow-sm font-semibold'
-                  : 'text-amber-400 hover:bg-amber-500/10'
+                statusFilter === "updates"
+                  ? "bg-amber-500 text-black shadow-sm font-semibold"
+                  : "text-amber-400 hover:bg-amber-500/10"
               }`}
             >
               <Zap className="w-3.5 h-3.5 fill-current" />
@@ -245,7 +259,9 @@ export const Navbar: React.FC = () => {
               {outdatedCount > 0 && (
                 <span
                   className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold ${
-                    statusFilter === 'updates' ? 'bg-black/20 text-black' : 'bg-amber-500/20 text-amber-400'
+                    statusFilter === "updates"
+                      ? "bg-black/20 text-black"
+                      : "bg-amber-500/20 text-amber-400"
                   }`}
                 >
                   {outdatedCount}
@@ -254,11 +270,11 @@ export const Navbar: React.FC = () => {
             </button>
 
             <button
-              onClick={() => setStatusFilter('up_to_date')}
+              onClick={() => setStatusFilter("up_to_date")}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-all ${
-                statusFilter === 'up_to_date'
-                  ? 'bg-emerald-600 text-white shadow-sm font-semibold'
-                  : 'text-muted-foreground hover:text-emerald-400'
+                statusFilter === "up_to_date"
+                  ? "bg-emerald-600 text-white shadow-sm font-semibold"
+                  : "text-muted-foreground hover:text-emerald-400"
               }`}
             >
               <Check className="w-3.5 h-3.5" />
@@ -274,8 +290,8 @@ export const Navbar: React.FC = () => {
                 onClick={() => setSelectedScope(s.id)}
                 className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
                   selectedScope === s.id
-                    ? 'bg-primary/15 text-primary border border-primary/30'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-card border border-transparent'
+                    ? "bg-primary/15 text-primary border border-primary/30"
+                    : "text-muted-foreground hover:text-foreground hover:bg-card border border-transparent"
                 }`}
               >
                 {s.label}
@@ -285,9 +301,21 @@ export const Navbar: React.FC = () => {
 
           {/* Quick Metrics */}
           <div className="hidden lg:flex items-center gap-3 text-[11px] text-muted-foreground font-mono">
-            <span>{t.total}: <strong className="text-foreground">{totalSkills}</strong></span>
+            <span>
+              {t.total}:{" "}
+              <strong className="text-foreground">{totalSkills}</strong>
+            </span>
             <span>•</span>
-            <span>{t.outdated}: <strong className={outdatedCount > 0 ? 'text-amber-400' : 'text-emerald-400'}>{outdatedCount}</strong></span>
+            <span>
+              {t.outdated}:{" "}
+              <strong
+                className={
+                  outdatedCount > 0 ? "text-amber-400" : "text-emerald-400"
+                }
+              >
+                {outdatedCount}
+              </strong>
+            </span>
           </div>
         </div>
       </div>
