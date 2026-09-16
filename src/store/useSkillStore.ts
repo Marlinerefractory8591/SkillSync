@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import { SkillMetadata, AppConfig } from "../types/skillsync";
+import { SkillMetadata, AppConfig, ManagedItemType } from "../types/skillsync";
 import { api } from "../lib/ipc";
 import { Language } from "../i18n/types";
 
@@ -28,6 +28,7 @@ interface SkillState {
   searchQuery: string;
   selectedScope: string;
   statusFilter: "all" | "updates" | "up_to_date";
+  itemTypeFilter: "all" | ManagedItemType;
   selectedSkill: SkillMetadata | null;
   isDetailOpen: boolean;
   isSettingsOpen: boolean;
@@ -48,6 +49,7 @@ interface SkillState {
   setSearchQuery: (query: string) => void;
   setSelectedScope: (scope: string) => void;
   setStatusFilter: (filter: "all" | "updates" | "up_to_date") => void;
+  setItemTypeFilter: (filter: "all" | ManagedItemType) => void;
   openDetail: (skill: SkillMetadata) => void;
   closeDetail: () => void;
   openSettings: () => void;
@@ -77,6 +79,7 @@ export const useSkillStore = create<SkillState>()(
     searchQuery: "",
     selectedScope: "all",
     statusFilter: "all",
+    itemTypeFilter: "all",
     selectedSkill: null,
     isDetailOpen: false,
     isSettingsOpen: false,
@@ -130,6 +133,12 @@ export const useSkillStore = create<SkillState>()(
     setStatusFilter: (filter: "all" | "updates" | "up_to_date") => {
       set((state) => {
         state.statusFilter = filter;
+      });
+    },
+
+    setItemTypeFilter: (filter: "all" | ManagedItemType) => {
+      set((state) => {
+        state.itemTypeFilter = filter;
       });
     },
 

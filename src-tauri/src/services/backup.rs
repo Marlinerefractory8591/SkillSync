@@ -62,14 +62,52 @@ impl BackupService {
             ));
         }
 
+        let target = Self::validated_restore_target(skill_path)?;
+        Self::clear_directory_contents(&target)?;
+
         let file = File::open(snapshot_file)?;
         let dec = GzDecoder::new(file);
         let mut archive = tar::Archive::new(dec);
 
-        // Unpack over existing files
+        // A rollback must be exact: an update may have added files (for example
+        // Composer's vendor files), so extracting over the old tree is unsafe.
         archive
-            .unpack(skill_path)
+            .unpack(&target)
             .map_err(|e| SkillSyncError::RollbackFailed(e.to_string()))?;
+        Ok(())
+    }
+
+    fn validated_restore_target(path: &Path) -> Result<PathBuf, SkillSyncError> {
+        let target = fs::canonicalize(path).map_err(|error| {
+            SkillSyncError::RollbackFailed(format!("Nie można ustalić katalogu rollbacku: {error}"))
+        })?;
+        let home = dirs::home_dir().and_then(|home| fs::canonicalize(home).ok());
+        if !target.is_dir() || target.parent().is_none() || home.as_ref() == Some(&target) {
+            return Err(SkillSyncError::RollbackFailed(format!(
+                "Niebezpieczny katalog rollbacku: {}",
+                target.display()
+            )));
+        }
+        Ok(target)
+    }
+
+    fn clear_directory_contents(path: &Path) -> Result<(), SkillSyncError> {
+        for entry in
+            fs::read_dir(path).map_err(|error| SkillSyncError::RollbackFailed(error.to_string()))?
+        {
+            let entry = entry.map_err(|error| SkillSyncError::RollbackFailed(error.to_string()))?;
+            let entry_path = entry.path();
+            let file_type = entry
+                .file_type()
+                .map_err(|error| SkillSyncError::RollbackFailed(error.to_string()))?;
+            if file_type.is_dir() {
+                fs::remove_dir_all(&entry_path)
+                    .map_err(|error| SkillSyncError::RollbackFailed(error.to_string()))?;
+            } else {
+                fs::remove_file(&entry_path)
+                    .map_err(|error| SkillSyncError::RollbackFailed(error.to_string()))?;
+            }
+        }
         Ok(())
     }
 
@@ -156,5 +194,42 @@ impl BackupService {
         // Sort newest first
         result.sort_by_key(|snapshot| std::cmp::Reverse(snapshot.created_at));
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn restore_removes_files_created_after_the_snapshot() {
+        let root = std::env::temp_dir().join(format!(
+            "skillsync-backup-{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        fs::create_dir_all(root.join("nested")).unwrap();
+        fs::write(root.join("nested/original.txt"), "before").unwrap();
+        let snapshot = BackupService::create_snapshot(&root, "rollback-test", "1.0.0").unwrap();
+
+        fs::write(root.join("new-file.txt"), "after").unwrap();
+        fs::write(root.join("nested/original.txt"), "changed").unwrap();
+        BackupService::restore_snapshot(&root, &snapshot.backup_file_path).unwrap();
+
+        assert!(!root.join("new-file.txt").exists());
+        assert_eq!(
+            fs::read_to_string(root.join("nested/original.txt")).unwrap(),
+            "before"
+        );
+        let _ = fs::remove_dir_all(root);
+        let sidecar = snapshot.backup_file_path.with_file_name(format!(
+            "{}.meta.json",
+            snapshot
+                .backup_file_path
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+        ));
+        let _ = fs::remove_file(sidecar);
+        let _ = fs::remove_file(snapshot.backup_file_path);
     }
 }

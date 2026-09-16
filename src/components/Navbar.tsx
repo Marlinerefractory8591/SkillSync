@@ -24,6 +24,8 @@ export const Navbar: React.FC = () => {
     setSelectedScope,
     statusFilter,
     setStatusFilter,
+    itemTypeFilter,
+    setItemTypeFilter,
     isScanning,
     fetchSkills,
     batchUpdateAll,
@@ -93,7 +95,7 @@ export const Navbar: React.FC = () => {
                   {t.appName}
                 </span>
                 <span className="text-[10px] uppercase font-semibold tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
-                  v1.0.0
+                  Local-first
                 </span>
               </div>
               <p className="text-[11px] text-muted-foreground hidden sm:block">
@@ -280,6 +282,29 @@ export const Navbar: React.FC = () => {
               <Check className="w-3.5 h-3.5" />
               <span>{t.statusUpToDate}</span>
             </button>
+          </div>
+
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-card/60 p-0.5">
+            {(
+              [
+                ["all", "All"],
+                ["skill", "Skills"],
+                ["mcp", "MCP"],
+                ["plugin", "Plugins"],
+              ] as const
+            ).map(([type, label]) => (
+              <button
+                key={type}
+                onClick={() => setItemTypeFilter(type)}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                  itemTypeFilter === type
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
           {/* Scopes Filter */}

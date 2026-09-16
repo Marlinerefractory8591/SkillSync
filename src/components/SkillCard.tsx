@@ -38,6 +38,7 @@ export const SkillCard: React.FC<SkillCardProps> = ({ skill }) => {
   const [isCheckingGitHub, setIsCheckingGitHub] = useState(false);
 
   const isUpdating = skill.status === "updating";
+  const itemType = skill.itemType ?? "skill";
 
   const handleCheckGitHub = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -102,6 +103,9 @@ export const SkillCard: React.FC<SkillCardProps> = ({ skill }) => {
         {/* Top meta row */}
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-center gap-2 flex-wrap">
+            <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded border border-sky-500/30 bg-sky-500/10 text-sky-400">
+              {itemType}
+            </span>
             <span
               className={`px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded border ${getScopeBadgeColor(
                 skill.agentScope,

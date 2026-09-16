@@ -1,6 +1,15 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum MonitoredPathType {
+    #[default]
+    Skill,
+    Mcp,
+    Plugin,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
@@ -62,6 +71,8 @@ pub struct MonitoredPath {
     pub id: String,
     pub path: PathBuf,
     pub scope: String,
+    #[serde(default)]
+    pub item_type: MonitoredPathType,
     pub custom_label: Option<String>,
     pub enabled: bool,
 }
@@ -97,45 +108,53 @@ impl PathsConfig {
                 home.join(".agents/skills"),
                 "agents",
                 "AI Agents Skills (~/.agents/skills)",
+                MonitoredPathType::Skill,
             ),
             (
                 home.join(".codex/skills"),
                 "codex",
                 "OpenAI Codex Skills (~/.codex/skills)",
+                MonitoredPathType::Skill,
             ),
             (
                 home.join(".claude/skills"),
                 "claude",
                 "Claude Desktop / Code (~/.claude/skills)",
+                MonitoredPathType::Skill,
             ),
             (
                 home.join(".gemini/config/skills"),
                 "antigravity",
                 "Gemini CLI / Antigravity (~/.gemini/config/skills)",
+                MonitoredPathType::Skill,
             ),
             (
                 home.join(".gemini/antigravity/builtin/skills"),
                 "antigravity",
                 "Gemini Built-in (~/.gemini/antigravity/builtin/skills)",
+                MonitoredPathType::Skill,
             ),
             (
                 home.join(".cursor/skills"),
                 "cursor",
                 "Cursor AI Skills (~/.cursor/skills)",
+                MonitoredPathType::Skill,
             ),
             (
                 home.join(".config/skills"),
                 "global",
                 "Global CLI Skills (~/.config/skills)",
+                MonitoredPathType::Skill,
             ),
         ];
 
-        for (p, scope, label) in standard_candidates {
+        for (p, scope, label, item_type) in standard_candidates {
             if p.exists() {
                 list.push(MonitoredPath {
                     id: format!("p{}", idx),
                     path: p,
                     scope: scope.to_string(),
+                    item_type,
                     custom_label: Some(label.to_string()),
                     enabled: true,
                 });
@@ -155,35 +174,41 @@ impl PathsConfig {
                 continue;
             }
 
-            // Plugins are commonly stored as <plugin>/<version>/skills, so a
-            // one-level lookup misses installed packages from these agents.
-            for entry in walkdir::WalkDir::new(&root)
-                .follow_links(false)
-                .max_depth(5)
-                .into_iter()
-                .filter_map(Result::ok)
-            {
-                let skills_dir = entry.path();
-                if !entry.file_type().is_dir() || entry.file_name() != "skills" {
-                    continue;
-                }
-                if list
-                    .iter()
-                    .any(|known: &MonitoredPath| known.path == skills_dir)
-                {
-                    continue;
-                }
+            if list.iter().any(|known: &MonitoredPath| known.path == root) {
+                continue;
+            }
+            list.push(MonitoredPath {
+                id: format!("p{}", idx),
+                path: root,
+                scope: scope.to_string(),
+                item_type: MonitoredPathType::Plugin,
+                custom_label: Some("Agent plugins".to_string()),
+                enabled: true,
+            });
+            idx += 1;
+        }
 
-                let name = skills_dir
-                    .parent()
-                    .and_then(|parent| parent.file_name())
-                    .map(|name| name.to_string_lossy().to_string())
-                    .unwrap_or_else(|| "package".to_string());
+        for (path, scope, label) in [
+            (home.join(".mcp"), "global", "MCP Servers (~/.mcp)"),
+            (
+                home.join(".config/mcp"),
+                "global",
+                "MCP Servers (~/.config/mcp)",
+            ),
+            (
+                home.join(".claude/mcp"),
+                "claude",
+                "Claude Code MCP Servers",
+            ),
+            (home.join(".codex/mcp"), "codex", "OpenAI Codex MCP Servers"),
+        ] {
+            if path.exists() && !list.iter().any(|known: &MonitoredPath| known.path == path) {
                 list.push(MonitoredPath {
                     id: format!("p{}", idx),
-                    path: skills_dir.to_path_buf(),
+                    path,
                     scope: scope.to_string(),
-                    custom_label: Some(format!("Plugin Skills: {}", name)),
+                    item_type: MonitoredPathType::Mcp,
+                    custom_label: Some(label.to_string()),
                     enabled: true,
                 });
                 idx += 1;
@@ -195,6 +220,7 @@ impl PathsConfig {
                 id: "p1".into(),
                 path: home.join(".claude/skills"),
                 scope: "claude".into(),
+                item_type: MonitoredPathType::Skill,
                 custom_label: None,
                 enabled: true,
             });
@@ -210,13 +236,14 @@ mod tests {
     use std::fs;
 
     #[test]
-    fn discovers_codex_and_nested_plugin_skill_directories() {
+    fn discovers_codex_skills_and_the_claude_plugin_root() {
         let root = std::env::temp_dir().join(format!(
             "skillsync-paths-test-{}",
             chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
         ));
         let codex = root.join(".codex/skills");
-        let nested_plugin = root.join(".claude/plugins/cache/example/1.0.0/skills");
+        let plugin_root = root.join(".claude/plugins");
+        let nested_plugin = plugin_root.join("cache/example/1.0.0/skills");
         fs::create_dir_all(&codex).unwrap();
         fs::create_dir_all(&nested_plugin).unwrap();
 
@@ -225,9 +252,9 @@ mod tests {
         assert!(paths
             .iter()
             .any(|path| path.path == codex && path.scope == "codex"));
-        assert!(paths
-            .iter()
-            .any(|path| path.path == nested_plugin && path.scope == "claude"));
+        assert!(paths.iter().any(|path| path.path == plugin_root
+            && path.scope == "claude"
+            && path.item_type == MonitoredPathType::Plugin));
 
         let _ = fs::remove_dir_all(root);
     }

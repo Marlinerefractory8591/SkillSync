@@ -27,7 +27,7 @@
 <!-- parity: purpose -->
 ## 1. What You Get
 
-SkillSync is an open-source, cross-platform desktop application powered by **Tauri v2**, **Rust**, **React 18**, and **Tailwind CSS**. It gives teams and individual builders one place to manage prompt skills, compare installed versions with upstream releases, and recover quickly if an update is not right for a project.
+SkillSync is an open-source, cross-platform desktop application powered by **Tauri v2**, **Rust**, **React 18**, and **Tailwind CSS**. It gives teams and individual builders one place to manage prompt skills, MCP integrations, and agent plugins, compare installed versions with upstream releases, and recover quickly if an update is not right for a project.
 
 - **Zero-Configuration Multi-Agent Discovery:** Automatically scans standard agent tool directories:
   - Claude Code: `~/.claude/skills`
@@ -39,6 +39,7 @@ SkillSync is an open-source, cross-platform desktop application powered by **Tau
 - **Zero-Rate-Limit GitHub Upstream Tracking:** Checks remote GitHub releases via redirect headers and Atom feeds without exhausting GitHub API rate limits.
 - **Atomic 7-Stage Update Protocol:** Every update creates an automatic pre-update archive snapshot (`~/.skillsync/backups/`) before modifying files. If Git checkouts, file writes, or integrity validation fail, changes are instantly reverted.
 - **Point-in-Time Rollback:** Restore any historical version with exact date-and-time timestamps and SemVer metadata.
+- **Explicit MCP and Plugin Detection:** A monitored MCP path must contain `mcp.json`, `.mcp.json`, or a Laravel package that explicitly declares `laravel/mcp` (including `laravel/boost`). A monitored plugin path must contain a supported `plugin.json`, such as Superpowers' `.claude-plugin/plugin.json`. Generic `composer.json` and `package.json` files are ignored.
 - **Automated Multi-Platform Packaging:** Built-in release scripts generate native installers for macOS (`.dmg`, `.app`) and Windows (`.msi`, `.exe`) with cryptographic SHA-256 manifests.
 
 ---
@@ -88,6 +89,15 @@ Upon launch, SkillSync immediately scans default agent paths in parallel. Your i
    - The engine validates post-update manifest integrity.
 4. **Instant Rollback on Demand:** If a tool behaves unexpectedly with your agent, open **Details ➔ Rollback**, choose the exact snapshot timestamp (e.g. `v1.0.0 (16.09.2026 10:15:32)`), and click **Restore**.
 
+### How MCP and plugin updates are kept safe
+
+Add a directory in **Settings → Monitored Paths** and select its type: **MCP** or **Plugin**. SkillSync shows the item type on the card, checks releases from its GitHub source when a source can be resolved, and uses the same preflight, clean-worktree, snapshot, integrity-check, and rollback flow as skills for Git-backed installations.
+
+- **Laravel Boost:** monitor a Git checkout of [`laravel/boost`](https://github.com/laravel/boost), or a deliberately selected Laravel project whose `composer.json` explicitly requires `laravel/boost` and whose `composer.lock` confirms the installed package. For the latter, SkillSync runs the dedicated preflight (`composer validate`), Composer update, second validation, and the project's `composer run test` script when it exists. A generic Laravel application is not reclassified as an MCP integration.
+- **Superpowers:** monitor the root of a Git checkout of [`obra/superpowers`](https://github.com/obra/superpowers). Its `.claude-plugin/plugin.json` is the plugin manifest; its embedded skills are not duplicated as plugins.
+- **Claude Code Marketplace plugins:** active cache entries are verified against `~/.claude/plugins/installed_plugins.json` and updated through the official `claude plugin update <plugin>@<marketplace> --scope <scope> --yes --json` command. Stale cache copies are never shown as installable resources. This covers plugins such as `n8n-mcp-skills` without corrupting Claude Code's registry.
+- **Package-manager installations:** Laravel Boost is the dedicated Composer adapter. Other package-managed MCPs are monitored but never updated by guessing whether to run `composer`, `npm`, `pnpm`, `uv`, or another package manager.
+
 ---
 
 <!-- parity: architecture -->
@@ -96,6 +106,10 @@ Upon launch, SkillSync immediately scans default agent paths in parallel. Your i
 | Directory / File | Responsibility |
 |---|---|
 | `src-tauri/src/services/detector.rs` | Recursive filesystem scanner for `SKILL.md`, valid `skill.json`, and explicitly marked package skill manifests across default agent directories |
+| `src-tauri/src/services/managed_detector.rs` | MCP and plugin scanner that dispatches only from the monitored item type and an explicit supported manifest |
+| `src-tauri/src/services/managed_manifest.rs` | Independent integrity validators for MCP configuration, Laravel MCP integrations, and agent plugins |
+| `src-tauri/src/services/mcp.rs` | Dedicated Composer preflight, update, test, and lockfile verification for installed Laravel Boost |
+| `src-tauri/src/services/claude_plugin.rs` | Registry-aware Claude Code Marketplace plugin update adapter |
 | `src-tauri/src/services/git.rs` | Local Git repository operations (tag resolution, clean worktree verification, checkout) |
 | `src-tauri/src/services/github.rs` | Zero-rate-limit GitHub release checking via HTTP 302 redirects, Atom feeds, and raw content downloads |
 | `src-tauri/src/services/backup.rs` | Gzip tarball snapshots and `.meta.json` sidecars in `~/.skillsync/backups/` |

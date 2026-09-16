@@ -29,6 +29,9 @@ export const SettingsModal: React.FC = () => {
   const [localConfig, setLocalConfig] = useState<AppConfig | null>(config);
   const [newPathInput, setNewPathInput] = useState("");
   const [newScopeInput, setNewScopeInput] = useState("global");
+  const [newItemType, setNewItemType] = useState<"skill" | "mcp" | "plugin">(
+    "skill",
+  );
   const [savedToast, setSavedToast] = useState(false);
   const [appUpdate, setAppUpdate] = useState<AppUpdateInfo | null>(null);
   const [appVersion, setAppVersion] = useState<string | null>(null);
@@ -89,6 +92,7 @@ export const SettingsModal: React.FC = () => {
       id: `p-${Date.now()}`,
       path: newPathInput.trim(),
       scope: newScopeInput,
+      itemType: newItemType,
       enabled: true,
     };
     setLocalConfig({
@@ -273,7 +277,7 @@ export const SettingsModal: React.FC = () => {
                             {p.path}
                           </p>
                           <span className="text-[10px] uppercase font-semibold text-primary/80">
-                            Scope: {p.scope}
+                            {p.itemType ?? "skill"} • Scope: {p.scope}
                           </span>
                         </div>
                       </div>
@@ -293,7 +297,7 @@ export const SettingsModal: React.FC = () => {
                   <h4 className="text-xs font-semibold text-foreground mb-2">
                     {t.addNewPath}
                   </h4>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <input
                       type="text"
                       value={newPathInput}
@@ -312,6 +316,20 @@ export const SettingsModal: React.FC = () => {
                       <option value="cursor">Cursor</option>
                       <option value="antigravity">Antigravity</option>
                       <option value="custom">Custom</option>
+                    </select>
+                    <select
+                      value={newItemType}
+                      onChange={(e) =>
+                        setNewItemType(
+                          e.target.value as "skill" | "mcp" | "plugin",
+                        )
+                      }
+                      aria-label="Type of managed item"
+                      className="h-9 px-2 text-xs rounded-lg border border-border bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    >
+                      <option value="skill">Skill</option>
+                      <option value="mcp">MCP</option>
+                      <option value="plugin">Plugin</option>
                     </select>
                     <button
                       onClick={handleAddPath}

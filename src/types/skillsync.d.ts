@@ -9,6 +9,8 @@ export type SkillStatus =
   | "updating"
   | "error";
 
+export type ManagedItemType = "skill" | "mcp" | "plugin";
+
 export type UpdateStage =
   | "validating"
   | "backing_up"
@@ -21,6 +23,7 @@ export type UpdateStage =
 
 export interface SkillMetadata {
   id: string;
+  itemType?: ManagedItemType;
   name: string;
   description: string;
   currentVersion: string;
@@ -54,6 +57,7 @@ export interface MonitoredPath {
   id: string;
   path: string;
   scope: string;
+  itemType?: ManagedItemType;
   customLabel?: string;
   enabled: boolean;
 }

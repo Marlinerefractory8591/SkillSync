@@ -16,7 +16,7 @@
 
 ## Co to jest SkillSync?
 
-SkillSync rozwiązuje praktyczny problem zarządzania prompt skills i Agent Skills w wielu narzędziach. Zamiast ręcznie szukać katalogów, tagów Git i kopii zapasowych, użytkownik dostaje jeden widok wykrytych skills, ich wersji, źródła oraz dostępnej aktualizacji. Aplikacja jest napisana w Tauri v2, Rust, React i Tailwind CSS; silnik plikowy działa lokalnie na komputerze użytkownika.
+SkillSync rozwiązuje praktyczny problem zarządzania prompt skills, MCP i pluginami agentów w wielu narzędziach. Zamiast ręcznie szukać katalogów, tagów Git i kopii zapasowych, użytkownik dostaje jeden widok wykrytych zasobów, ich wersji, źródła oraz dostępnej aktualizacji. Aplikacja jest napisana w Tauri v2, Rust, React i Tailwind CSS; silnik plikowy działa lokalnie na komputerze użytkownika.
 
 SkillSync rozpoznaje wyłącznie katalogi z `SKILL.md`, poprawnym `skill.json` albo jawnie oznaczonym manifestem `package.json` (`skill` lub `ai-skill`). Zwykłe podkatalogi `docs`, `gallery`, workspace packages i inne projekty Node.js nie są skillami tylko dlatego, że leżą wewnątrz katalogu `skills`. Brak pola wersji nie jest zamieniany na `v1.0.0`: interfejs pokazuje **Nieznana wersja** i nie sugeruje aktualizacji bez bezpiecznego porównania SemVer.
 
@@ -30,6 +30,7 @@ SkillSync rozpoznaje wyłącznie katalogi z `SKILL.md`, poprawnym `skill.json` a
 | Kopia i rollback | Przed zmianą tworzy archiwalną migawkę wszystkich lokalizacji | Błąd etapu powoduje próbę przywrócenia migawki |
 | Wiele lokalizacji | Grupuje te same skills znalezione w różnych katalogach | Wszystkie lokalizacje przechodzą walidację przed zapisem |
 | Wersja SkillSync | **Ustawienia → Ogólne** sprawdza dostępne wydanie | Brak wydania jest komunikowany, nie udawany |
+| MCP i pluginy | W ustawieniach wybierasz typ monitorowanej ścieżki: MCP albo Plugin | Każdy typ wymaga osobnego, jawnego manifestu |
 
 ## Jak zaktualizować skills AI — szybka odpowiedź
 
@@ -40,6 +41,23 @@ SkillSync rozpoznaje wyłącznie katalogi z `SKILL.md`, poprawnym `skill.json` a
 5. Jeżeli aktualizacja nie pasuje do projektu, użyj **Szczegóły → Rollback** i wybierz konkretną migawkę.
 
 Nie uruchamiaj aktualizacji „w ciemno” dla repozytorium z własnymi zmianami. SkillSync zatrzyma aktualizację, gdy Git wykryje modyfikacje w śledzonych plikach. Nieśledzone notatki i pliki pomocnicze same w sobie nie powinny blokować aktualizacji.
+
+## Monitorowanie MCP i pluginów
+
+W **Ustawienia → Monitorowane ścieżki** dodaj katalog i wybierz jego typ: **MCP** albo **Plugin**. Karta wynikowa pokazuje typ zasobu, a dla rozpoznanego źródła GitHub można sprawdzić wydanie upstream. Aktualizacja repozytorium Git przechodzi ten sam preflight, kontrolę dirty state, snapshot, weryfikację integralności i rollback co aktualizacja skills.
+
+| Typ | Prawidłowy manifest | Przykład | Co nie zostanie wykryte |
+|---|---|---|---|
+| MCP | `mcp.json`, `.mcp.json` albo jawne `laravel/mcp` w `composer.json` | [`laravel/boost`](https://github.com/laravel/boost) | Zwykły projekt Laravel lub dowolny `composer.json` |
+| Plugin | `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `.cursor-plugin/plugin.json` albo `plugin.json` | [`obra/superpowers`](https://github.com/obra/superpowers) | Katalog tylko z README, skills lub package.json |
+
+Superpowers jest rozpoznawany po `.claude-plugin/plugin.json`; jego wewnętrzne skills nie są błędnie dublowane jako pluginy. Laravel Boost jest rozpoznawany tylko wtedy, gdy manifest jawnie deklaruje `laravel/mcp`. To ogranicza ryzyko objęcia aktualizacją przypadkowej aplikacji PHP.
+
+SkillSync aktualizuje MCP i pluginy zainstalowane jako repozytorium Git. Dla Laravel Boost w świadomie wskazanym root projektu Composer (jawne `laravel/boost` w `composer.json` oraz potwierdzony pakiet w `composer.lock`) używany jest dedykowany adapter: `composer validate`, `composer update laravel/boost --with-all-dependencies`, ponowna walidacja oraz `composer run test`, gdy projekt ma skrypt `test`. Zanim Composer zmieni lockfile lub zależności, powstaje snapshot; błąd, nieudany test albo niespójny manifest uruchamia dokładny rollback.
+
+Pluginy Claude Code instalowane z marketplace są aktualizowane oficjalnym `claude plugin update`, a nie przez ręczne nadpisywanie katalogu cache. SkillSync najpierw sprawdza `~/.claude/plugins/installed_plugins.json`, dlatego pokazuje wyłącznie aktywną wersję instalacji. Stare katalogi cache — takie jak `n8n-mcp-skills/1.27.3`, gdy rejestr wskazuje inną wersję — są pomijane i nie mogą już wywołać błędu „nie jest repozytorium Git”.
+
+Dla pozostałych instalacji pakietowych narzędzie może bezpiecznie monitorować manifest, lecz nie zgaduje, czy ma uruchomić `composer`, `npm`, `pnpm`, `uv` albo inny menedżer. Zamiast tego zatrzymuje operację przed zapisem i komunikuje, że potrzebny jest dedykowany adapter aktualizacji.
 
 ## Zasady działania aktualizacji
 

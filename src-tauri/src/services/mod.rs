@@ -1,7 +1,11 @@
 pub mod backup;
+pub mod claude_plugin;
 pub mod config;
 pub mod detector;
 pub mod git;
 pub mod github;
+pub mod managed_detector;
+pub mod managed_manifest;
 pub mod manifest;
+pub mod mcp;
 pub mod orchestrator;

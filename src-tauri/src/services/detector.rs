@@ -116,6 +116,7 @@ impl SkillDetector {
                     let compatibility = Self::infer_compatibility(dir, &scope, &fm_dummy);
 
                     return Some(SkillMetadata {
+                        item_type: crate::models::skill::ManagedItemType::Skill,
                         id: format!("skill-{}", name.replace(' ', "-").to_lowercase()),
                         name,
                         description: desc,
@@ -170,6 +171,7 @@ impl SkillDetector {
                 .unwrap_or_else(|| UNKNOWN_SKILL_VERSION.to_string());
 
             return Some(SkillMetadata {
+                item_type: crate::models::skill::ManagedItemType::Skill,
                 id: format!("skill-{}", name.replace(' ', "-").to_lowercase()),
                 name,
                 description: desc,
@@ -228,6 +230,7 @@ impl SkillDetector {
                         let compatibility = Self::infer_compatibility(dir, &scope, &fm_dummy);
 
                         return Some(SkillMetadata {
+                            item_type: crate::models::skill::ManagedItemType::Skill,
                             id: format!("skill-{}", name.replace(' ', "-").to_lowercase()),
                             name,
                             description: desc,

@@ -2,6 +2,25 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-09-16
+
+### Added
+
+- Unified discovery, filtering and sorting for Skills, MCP integrations and agent plugins.
+- Dedicated Composer update adapter for installed Laravel Boost, including Composer validation, project tests and lockfile verification.
+- Registry-aware Claude Code Marketplace plugin updates through the official `claude plugin update` command.
+
+### Fixed
+
+- Ignore obsolete Claude Code cache copies and use the active `installed_plugins.json` entry, preventing stale plugins such as `n8n-mcp-skills` from failing as non-Git directories.
+- Make rollback exact by removing files created during a failed update before restoring the snapshot.
+- Do not display a hard-coded application version in the navigation header.
+
+### Security
+
+- Keep plugin registry ownership with Claude Code rather than mutating Marketplace cache directories directly.
+- Require an explicit supported manifest and preflight before every managed update.
+
 ## [1.0.0] - 2026-09-16
 
 ### Added
@@ -24,3 +43,4 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Validate the skill manifest after every update and restore the snapshot when validation fails.
 
 [1.0.0]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.0.0
+[1.1.0]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.1.0

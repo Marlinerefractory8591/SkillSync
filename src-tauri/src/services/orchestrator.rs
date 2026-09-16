@@ -1,9 +1,13 @@
 use crate::errors::SkillSyncError;
+use crate::models::skill::ManagedItemType;
 use crate::models::skill::{SkillMetadata, SkillStatus};
 use crate::services::backup::BackupService;
+use crate::services::claude_plugin::ClaudePluginService;
 use crate::services::git::GitService;
 use crate::services::github::GitHubService;
+use crate::services::managed_manifest::{ManagedManifest, ManagedManifestKind};
 use crate::services::manifest::SkillManifest;
+use crate::services::mcp::McpService;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -48,25 +52,101 @@ impl UpdateOrchestrator {
         // detector should make this guard unreachable in normal use, but it is
         // the transaction-level safety net for stale UI state and custom IPC.
         for target in &canonical_targets {
-            SkillManifest::validate(target).map_err(|reason| {
+            ManagedManifest::validate(&skill.item_type, target).map_err(|reason| {
                 SkillSyncError::InvalidManifest(format!("{}: {reason}", target.display()))
             })?;
+            if GitService::is_git_repository(target)
+                && !allow_dirty_worktree
+                && !GitService::is_worktree_clean(target)?
+            {
+                return Err(SkillSyncError::WorktreeDirty);
+            }
         }
 
         // 1. Stage: Create Atomic Snapshots for all target paths
         let mut snapshots = Vec::new();
         for target in &canonical_targets {
-            if let Ok(snap) =
-                BackupService::create_snapshot(target, &skill.id, &skill.current_version)
-            {
-                snapshots.push((target.clone(), snap));
-            }
+            let snapshot =
+                BackupService::create_snapshot(target, &skill.id, &skill.current_version).map_err(
+                    |error| {
+                        SkillSyncError::FileSystem(format!(
+                            "Nie udało się utworzyć migawki bezpieczeństwa dla {}: {error}",
+                            target.display()
+                        ))
+                    },
+                )?;
+            snapshots.push((target.clone(), snapshot));
         }
 
         // 2. Stage: Perform updates across all locations
+        let mut resolved_version: Option<String> = None;
+        let mut resolved_locations: Option<Vec<PathBuf>> = None;
         for target in &canonical_targets {
+            let manifest =
+                ManagedManifest::validate(&skill.item_type, target).map_err(|reason| {
+                    SkillSyncError::InvalidManifest(format!("{}: {reason}", target.display()))
+                })?;
+            let mut verification_targets = vec![target.clone()];
+
+            // Laravel Boost installed in an application root is owned by
+            // Composer, not by the application's Git remote. Run its explicit
+            // adapter only when lockfile evidence proves it is installed.
+            if skill.item_type == ManagedItemType::Mcp
+                && manifest == ManagedManifestKind::LaravelBoost
+                && McpService::is_laravel_boost_project(target)
+            {
+                if let Err(error) = McpService::update_laravel_boost(target) {
+                    for (t, snap) in &snapshots {
+                        let _ = BackupService::restore_snapshot(t, &snap.backup_file_path);
+                    }
+                    return Err(error);
+                }
+                let version = McpService::laravel_boost_version(target).ok_or_else(|| {
+                    SkillSyncError::IntegrityCheckFailed(format!(
+                        "composer.lock nie zawiera laravel/boost po aktualizacji w {}",
+                        target.display()
+                    ))
+                })?;
+                if let Some(previous) = &resolved_version {
+                    if previous != &version {
+                        for (t, snap) in &snapshots {
+                            let _ = BackupService::restore_snapshot(t, &snap.backup_file_path);
+                        }
+                        return Err(SkillSyncError::IntegrityCheckFailed(
+                            "różne lokalizacje Laravel Boost mają różne wersje po aktualizacji"
+                                .to_string(),
+                        ));
+                    }
+                } else {
+                    resolved_version = Some(version);
+                }
+            // Claude Code cache plugins must be updated by the CLI that owns
+            // their registry, never by copying cache files directly.
+            } else if skill.item_type == ManagedItemType::Plugin
+                && manifest == ManagedManifestKind::Plugin
+                && ClaudePluginService::installation_for_path(target).is_some()
+            {
+                let locations = match ClaudePluginService::update(target) {
+                    Ok(locations) => locations,
+                    Err(error) => {
+                        for (t, snap) in &snapshots {
+                            let _ = BackupService::restore_snapshot(t, &snap.backup_file_path);
+                        }
+                        return Err(error);
+                    }
+                };
+                let version =
+                    ClaudePluginService::plugin_version(&locations[0]).ok_or_else(|| {
+                        SkillSyncError::IntegrityCheckFailed(format!(
+                            "Claude Code nie podał wersji pluginu po aktualizacji w {}",
+                            locations[0].display()
+                        ))
+                    })?;
+                verification_targets = locations.clone();
+                resolved_locations = Some(locations);
+                resolved_version = Some(version);
             // A. If Git repo, perform fetch and checkout
-            if GitService::is_git_repository(target) {
+            } else if GitService::is_git_repository(target) {
                 if let Err(e) =
                     GitService::fetch_and_checkout_tag(target, &target_tag, allow_dirty_worktree)
                 {
@@ -75,49 +155,86 @@ impl UpdateOrchestrator {
                     }
                     return Err(e);
                 }
-            } else if let Some(ref remote_url) = skill.remote_url {
-                // If not git repo, fetch latest upstream SKILL.md if available
-                if let Some(upstream_content) =
-                    GitHubService::fetch_raw_skill_md(remote_url, &target_tag, &skill.name).await
-                {
-                    let skill_md_path = target.join("SKILL.md");
-                    let _ = fs::write(&skill_md_path, upstream_content);
+            } else if skill.item_type == ManagedItemType::Skill {
+                if let Some(ref remote_url) = skill.remote_url {
+                    // If not git repo, fetch latest upstream SKILL.md if available
+                    if let Some(upstream_content) =
+                        GitHubService::fetch_raw_skill_md(remote_url, &target_tag, &skill.name)
+                            .await
+                    {
+                        let skill_md_path = target.join("SKILL.md");
+                        let _ = fs::write(&skill_md_path, upstream_content);
+                    }
                 }
+            } else {
+                for (t, snap) in &snapshots {
+                    let _ = BackupService::restore_snapshot(t, &snap.backup_file_path);
+                }
+                return Err(SkillSyncError::UnsupportedUpdateMethod(format!(
+                    "{} nie jest repozytorium Git. SkillSync monitoruje ten manifest, ale nie uruchomi automatycznie menedżera pakietów bez jawnego, bezpiecznego adaptera aktualizacji.",
+                    target.display()
+                )));
             }
 
             // B. Update manifests on disk (SKILL.md, skill.json, package.json)
-            if let Err(e) = Self::update_skill_md_version(target, &target_tag) {
-                for (t, snap) in &snapshots {
-                    let _ = BackupService::restore_snapshot(t, &snap.backup_file_path);
+            if skill.item_type == ManagedItemType::Skill {
+                if let Err(e) = Self::update_skill_md_version(target, &target_tag) {
+                    for (t, snap) in &snapshots {
+                        let _ = BackupService::restore_snapshot(t, &snap.backup_file_path);
+                    }
+                    return Err(e);
                 }
-                return Err(e);
-            }
 
-            Self::update_skill_json_version(target, &target_tag)?;
-            if SkillManifest::is_explicit_package_skill(target) {
-                Self::update_package_json_version(target, &target_tag)?;
+                Self::update_skill_json_version(target, &target_tag)?;
+                if SkillManifest::is_explicit_package_skill(target) {
+                    Self::update_package_json_version(target, &target_tag)?;
+                }
             }
 
             // C. Stage: Post-Update Integrity Verification
-            if !Self::verify_integrity(target) {
-                for (t, snap) in &snapshots {
-                    let _ = BackupService::restore_snapshot(t, &snap.backup_file_path);
+            for verification_target in verification_targets {
+                if !Self::verify_integrity(&skill.item_type, &verification_target) {
+                    for (t, snap) in &snapshots {
+                        let _ = BackupService::restore_snapshot(t, &snap.backup_file_path);
+                    }
+                    return Err(SkillSyncError::IntegrityCheckFailed(format!(
+                        "Manifest zasobu jest uszkodzony lub nieobecny po aktualizacji w {:?}",
+                        verification_target
+                    )));
                 }
-                return Err(SkillSyncError::IntegrityCheckFailed(format!(
-                    "Skill manifest is corrupted or missing after update in {:?}",
-                    target
-                )));
             }
         }
 
         // Return updated metadata
         let mut updated = skill.clone();
-        updated.current_version = target_tag.clone();
-        updated.latest_version = Some(target_tag);
-        updated.update_available = false;
-        updated.status = SkillStatus::UpToDate;
-        updated.update_compatibility = None;
+        let current_version = resolved_version.unwrap_or_else(|| target_tag.clone());
+        let latest_version = skill
+            .latest_version
+            .clone()
+            .unwrap_or_else(|| target_tag.clone());
+        let update_still_available = crate::services::github::GitHubService::is_newer_version(
+            &latest_version,
+            &current_version,
+        );
+        updated.current_version = current_version.clone();
+        updated.latest_version = Some(latest_version.clone());
+        updated.update_available = update_still_available;
+        updated.status = if update_still_available {
+            SkillStatus::UpdateAvailable
+        } else {
+            SkillStatus::UpToDate
+        };
+        updated.update_compatibility = update_still_available.then(|| {
+            format!(
+                "Composer retained {} while upstream offers {}; check the package constraint in composer.json.",
+                current_version, latest_version
+            )
+        });
         updated.last_checked = chrono::Utc::now();
+        if let Some(locations) = resolved_locations {
+            updated.path = locations[0].clone();
+            updated.installed_locations = locations;
+        }
 
         Ok(updated)
     }
@@ -263,8 +380,8 @@ impl UpdateOrchestrator {
         (succeeded, failed)
     }
 
-    fn verify_integrity(path: &Path) -> bool {
-        SkillManifest::validate(path).is_ok()
+    fn verify_integrity(item_type: &ManagedItemType, path: &Path) -> bool {
+        ManagedManifest::validate(item_type, path).is_ok()
     }
 }
 
@@ -282,6 +399,7 @@ mod tests {
 
     fn metadata_for(path: PathBuf) -> SkillMetadata {
         SkillMetadata {
+            item_type: ManagedItemType::Skill,
             id: "skill-fixture".to_string(),
             name: "fixture".to_string(),
             description: "Fixture skill".to_string(),
@@ -364,7 +482,89 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("skill.json"), "{invalid").unwrap();
 
-        assert!(!UpdateOrchestrator::verify_integrity(&dir));
+        assert!(!UpdateOrchestrator::verify_integrity(
+            &ManagedItemType::Skill,
+            &dir
+        ));
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn updates_a_git_backed_plugin_and_keeps_its_manifest_valid() {
+        let dir = fixture_dir("plugin-update");
+        fs::create_dir_all(dir.join(".claude-plugin")).unwrap();
+        let repo = git2::Repository::init(&dir).unwrap();
+        let manifest = dir.join(".claude-plugin/plugin.json");
+        fs::write(&manifest, r#"{"name":"superpowers","version":"1.0.0"}"#).unwrap();
+
+        let signature = git2::Signature::now("SkillSync test", "tests@example.invalid").unwrap();
+        let mut index = repo.index().unwrap();
+        index
+            .add_path(Path::new(".claude-plugin/plugin.json"))
+            .unwrap();
+        index.write().unwrap();
+        let tree = repo.find_tree(index.write_tree().unwrap()).unwrap();
+        let first = repo
+            .commit(Some("HEAD"), &signature, &signature, "v1", &tree, &[])
+            .unwrap();
+        let first_object = repo.find_object(first, None).unwrap();
+        repo.tag_lightweight("v1.0.0", &first_object, false)
+            .unwrap();
+
+        fs::write(&manifest, r#"{"name":"superpowers","version":"1.1.0"}"#).unwrap();
+        let mut index = repo.index().unwrap();
+        index
+            .add_path(Path::new(".claude-plugin/plugin.json"))
+            .unwrap();
+        index.write().unwrap();
+        let tree = repo.find_tree(index.write_tree().unwrap()).unwrap();
+        let parent = repo.head().unwrap().peel_to_commit().unwrap();
+        let second = repo
+            .commit(
+                Some("HEAD"),
+                &signature,
+                &signature,
+                "v1.1",
+                &tree,
+                &[&parent],
+            )
+            .unwrap();
+        let second_object = repo.find_object(second, None).unwrap();
+        repo.tag_lightweight("v1.1.0", &second_object, false)
+            .unwrap();
+
+        let mut metadata = metadata_for(dir.clone());
+        metadata.id = "plugin-superpowers".to_string();
+        metadata.item_type = ManagedItemType::Plugin;
+        metadata.name = "superpowers".to_string();
+        metadata.latest_version = Some("1.1.0".to_string());
+
+        let updated =
+            UpdateOrchestrator::update_skill_atomic(&metadata, Some("1.1.0".to_string()), false)
+                .await
+                .unwrap();
+
+        assert_eq!(updated.current_version, "1.1.0");
+        assert!(ManagedManifest::validate_plugin(&dir).is_ok());
+        assert!(fs::read_to_string(&manifest).unwrap().contains("1.1.0"));
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn refuses_a_non_git_mcp_update_without_writing_to_the_manifest() {
+        let dir = fixture_dir("mcp-no-package-manager");
+        fs::create_dir_all(&dir).unwrap();
+        let original = r#"{"mcpServers":{"demo":{"command":"node"}}}"#;
+        fs::write(dir.join("mcp.json"), original).unwrap();
+        let mut metadata = metadata_for(dir.clone());
+        metadata.item_type = ManagedItemType::Mcp;
+
+        let error = UpdateOrchestrator::update_skill_atomic(&metadata, None, false)
+            .await
+            .expect_err("a generic MCP config must not be changed with a guessed package manager");
+
+        assert!(matches!(error, SkillSyncError::UnsupportedUpdateMethod(_)));
+        assert_eq!(fs::read_to_string(dir.join("mcp.json")).unwrap(), original);
         let _ = fs::remove_dir_all(dir);
     }
 }

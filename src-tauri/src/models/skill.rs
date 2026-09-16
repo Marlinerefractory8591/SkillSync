@@ -2,6 +2,17 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+/// The installable artifact managed by SkillSync. Each type has its own
+/// manifest validator; a package is never reclassified solely by its path.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ManagedItemType {
+    #[default]
+    Skill,
+    Mcp,
+    Plugin,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum AgentScope {
@@ -29,6 +40,8 @@ pub enum SkillStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillMetadata {
+    #[serde(default)]
+    pub item_type: ManagedItemType,
     pub id: String,
     pub name: String,
     pub description: String,

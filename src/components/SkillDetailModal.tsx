@@ -137,6 +137,9 @@ export const SkillDetailModal: React.FC = () => {
                   <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-primary/15 text-primary border border-primary/25">
                     {selectedSkill.agentScope}
                   </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-sky-500/10 text-sky-400 border border-sky-500/30">
+                    {selectedSkill.itemType ?? "skill"}
+                  </span>
                   <span className="text-xs font-mono text-muted-foreground">
                     {formatSkillVersion(selectedSkill.currentVersion, language)}
                   </span>
@@ -195,8 +198,8 @@ export const SkillDetailModal: React.FC = () => {
                     {t.updatingLocations}
                   </h4>
                   <p className="text-[11px] text-muted-foreground mt-0.5">
-                    Tworzenie migawki bezpieczeństwa, aktualizacja manifestu i
-                    synchronizacja plików we wszystkich lokalizacjach (
+                    Tworzenie migawki bezpieczeństwa, preflight, aktualizacja i
+                    weryfikacja integralności we wszystkich lokalizacjach (
                     {selectedSkill.installedLocations?.length || 1}).
                   </p>
                 </div>

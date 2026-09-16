@@ -19,6 +19,9 @@ pub enum SkillSyncError {
     #[error("Niepoprawny format manifestu skill: {0}")]
     InvalidManifest(String),
 
+    #[error("Nieobsługiwany automatyczny sposób aktualizacji: {0}")]
+    UnsupportedUpdateMethod(String),
+
     #[error("Weryfikacja integralności po aktualizacji zakończona niepowodzeniem: {0}")]
     IntegrityCheckFailed(String),
 

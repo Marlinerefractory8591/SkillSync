@@ -5,21 +5,26 @@ use crate::services::detector::SkillDetector;
 use crate::services::detector::UNKNOWN_SKILL_VERSION;
 use crate::services::git::GitService;
 use crate::services::github::GitHubService;
+use crate::services::managed_detector::ManagedItemDetector;
 use crate::services::orchestrator::UpdateOrchestrator;
-use std::path::PathBuf;
 
 #[tauri::command]
 pub async fn scan_skills(_force_refresh: bool) -> Result<Vec<SkillMetadata>, String> {
     let config = ConfigService::load_config();
-    let paths: Vec<PathBuf> = config
+    let paths: Vec<_> = config
         .paths
         .monitored
         .into_iter()
         .filter(|p| p.enabled)
-        .map(|p| p.path)
         .collect();
 
-    let mut skills = SkillDetector::scan_directories(&paths);
+    let skill_paths = paths
+        .iter()
+        .filter(|path| path.item_type == crate::models::config::MonitoredPathType::Skill)
+        .map(|path| path.path.clone())
+        .collect::<Vec<_>>();
+    let mut skills = SkillDetector::scan_directories(&skill_paths);
+    skills.extend(ManagedItemDetector::scan_paths(&paths));
 
     // A missing manifest version can be resolved only from a tag pointing at HEAD.
     for skill in &mut skills {
@@ -354,6 +359,7 @@ mod tests {
         std::fs::write(skill_dir.join("SKILL.md"), initial_skill_md).unwrap();
 
         let meta = SkillMetadata {
+            item_type: crate::models::skill::ManagedItemType::Skill,
             id: "skill-test-sync-skill".to_string(),
             name: "test-sync-skill".to_string(),
             description: "Test skill".to_string(),

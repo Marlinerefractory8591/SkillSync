@@ -13,35 +13,54 @@ export const SkillList: React.FC = () => {
     searchQuery,
     selectedScope,
     statusFilter,
+    itemTypeFilter,
     fetchSkills,
     openSettings,
   } = useSkillStore();
 
   // Filter skills
-  const filteredSkills = skills.filter((skill) => {
-    // Scope filter
-    if (
-      selectedScope !== "all" &&
-      skill.agentScope.toLowerCase() !== selectedScope.toLowerCase()
-    ) {
-      return false;
-    }
+  const filteredSkills = skills
+    .filter((skill) => {
+      // Scope filter
+      if (
+        selectedScope !== "all" &&
+        skill.agentScope.toLowerCase() !== selectedScope.toLowerCase()
+      ) {
+        return false;
+      }
 
-    // Status filter
-    if (statusFilter === "updates" && !skill.updateAvailable) return false;
-    if (statusFilter === "up_to_date" && skill.updateAvailable) return false;
+      // Status filter
+      if (statusFilter === "updates" && !skill.updateAvailable) return false;
+      if (statusFilter === "up_to_date" && skill.updateAvailable) return false;
 
-    // Search query
-    if (searchQuery.trim() !== "") {
-      const q = searchQuery.toLowerCase();
-      const matchName = skill.name.toLowerCase().includes(q);
-      const matchDesc = skill.description.toLowerCase().includes(q);
-      const matchAuthor = skill.author.toLowerCase().includes(q);
-      return matchName || matchDesc || matchAuthor;
-    }
+      if (
+        itemTypeFilter !== "all" &&
+        (skill.itemType ?? "skill") !== itemTypeFilter
+      ) {
+        return false;
+      }
 
-    return true;
-  });
+      // Search query
+      if (searchQuery.trim() !== "") {
+        const q = searchQuery.toLowerCase();
+        const matchName = skill.name.toLowerCase().includes(q);
+        const matchDesc = skill.description.toLowerCase().includes(q);
+        const matchAuthor = skill.author.toLowerCase().includes(q);
+        return matchName || matchDesc || matchAuthor;
+      }
+
+      return true;
+    })
+    .sort((left, right) => {
+      const order = { skill: 0, mcp: 1, plugin: 2 } as const;
+      const itemComparison =
+        order[left.itemType ?? "skill"] - order[right.itemType ?? "skill"];
+      return itemComparison !== 0
+        ? itemComparison
+        : left.name.localeCompare(right.name, undefined, {
+            sensitivity: "base",
+          });
+    });
 
   // Skeleton loading state
   if (isLoading) {
