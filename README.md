@@ -1,188 +1,262 @@
-# SkillSync — bezpieczna aktualizacja skills dla Claude Code, Codex, Cursor i Gemini
+# SkillSync — AI Agent Skills Manager & Version Controller
 
-> SkillSync to desktopowy menedżer skills AI: wykrywa prawidłowe manifesty, porównuje wersje z upstreamem i wykonuje aktualizację z kopią zapasową oraz rollbackiem. Jeśli szukasz odpowiedzi na pytanie „jak zaktualizować skills w Claude Code, Codexie lub Gemini”, zacznij od **Aktualizacje**, sprawdź changelog i uruchom aktualizację wybranego skilla.
+> SkillSync is a desktop **skill management tool** that helps you **update skills**, track versions, and safely sync prompt skills across AI agent projects.
 
-> Jeśli SkillSync oszczędza Ci czas, daj projektowi ⭐ na GitHubie i udostępnij go w swoich social media. To prosty sposób, aby inni użytkownicy Claude Code, Codexa, Cursor i Gemini mogli znaleźć bezpieczny aktualizator skills.
+> If SkillSync saves you time, please give the project a GitHub star ⭐ and share it on social media. It helps other Claude Code, Codex, Cursor, and Gemini users find a safer way to update skills.
 
-[English documentation](README.en.md) · [Instrukcja SEO/AEO/GEO](docs/AI-SEARCH-AND-SEO.md) · [Zasady wersjonowania](docs/SEMVER_RELEASE.md) · [CI i release](.github/workflows/ci.yml)
+[![CI / CD Build Pipeline](https://img.shields.io/github/actions/workflow/status/tomaszboloz/SkillSync/ci.yml?branch=main&style=for-the-badge&logo=github-actions&logoColor=white&label=CI%2FCD)](https://github.com/tomaszboloz/SkillSync/actions)
+[![Release Version](https://img.shields.io/github/v/release/tomaszboloz/SkillSync?style=for-the-badge&logo=semver&logoColor=white&color=7c3aed)](https://github.com/tomaszboloz/SkillSync/releases)
+[![Rust Engine](https://img.shields.io/badge/Rust-1.80%2B-orange?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
+[![Tauri v2 Powered](https://img.shields.io/badge/Tauri-v2.0-24C8D8?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
+[![License](https://img.shields.io/github/license/tomaszboloz/SkillSync?style=for-the-badge&color=blue)](LICENSE)
 
-![SkillSync — pusty stan bez danych użytkownika](docs/screenshots/empty-state.png)
+> **Language versions:** **English (current)** • **[Polski](README.pl.md)**
 
-*Pusty stan jest celowy: aplikacja nie pokazuje wymyślonych skills ani prywatnych ścieżek, gdy skan nie znajdzie prawidłowego manifestu.*
+---
 
-![Ustawienia SkillSync — monitorowane ścieżki](docs/screenshots/settings-monitored-paths.png)
+![SkillSync empty state — no personal paths or skill data](docs/screenshots/empty-state.png)
 
-*W ustawieniach dodasz własny katalog, włączysz lub wyłączysz monitoring i sprawdzisz wersję aplikacji. Zrzuty są zanonimizowane.*
+*A safe starting state: add a monitored directory or rescan when no skills are detected.*
 
-## Co to jest SkillSync?
+![SkillSync settings — monitored paths](docs/screenshots/settings-monitored-paths.png)
 
-SkillSync rozwiązuje praktyczny problem zarządzania prompt skills i Agent Skills w wielu narzędziach. Zamiast ręcznie szukać katalogów, tagów Git i kopii zapasowych, użytkownik dostaje jeden widok wykrytych skills, ich wersji, źródła oraz dostępnej aktualizacji. Aplikacja jest napisana w Tauri v2, Rust, React i Tailwind CSS; silnik plikowy działa lokalnie na komputerze użytkownika.
+*The settings screen uses anonymized paths. Add, enable, or remove monitored locations without exposing personal data in the documentation.*
 
-SkillSync rozpoznaje wyłącznie katalogi z `SKILL.md`, poprawnym `skill.json` albo jawnie oznaczonym manifestem `package.json` (`skill` lub `ai-skill`). Zwykłe podkatalogi `docs`, `gallery`, workspace packages i inne projekty Node.js nie są skillami tylko dlatego, że leżą wewnątrz katalogu `skills`. Brak pola wersji nie jest zamieniany na `v1.0.0`: interfejs pokazuje **Nieznana wersja** i nie sugeruje aktualizacji bez bezpiecznego porównania SemVer.
+---
 
-## Najważniejsze możliwości
+<!-- parity: purpose -->
+## 1. What You Get
 
-| Obszar | Jak działa | Granica bezpieczeństwa |
-|---|---|---|
-| Wykrywanie skills | Skanuje standardowe i dodane ręcznie ścieżki | Wymaga prawdziwego manifestu; nie zgaduje po nazwie katalogu |
-| Aktualizacja Git | Pobiera wskazany tag/ref i aktualizuje manifest skilla | Zmodyfikowany śledzony plik Git blokuje operację |
-| Aktualizacja plikowa | Dla skilla ze źródłem upstream aktualizuje właściwy manifest | Zwykły `package.json` nigdy nie jest przepisywany |
-| Kopia i rollback | Przed zmianą tworzy archiwalną migawkę wszystkich lokalizacji | Błąd etapu powoduje próbę przywrócenia migawki |
-| Wiele lokalizacji | Grupuje te same skills znalezione w różnych katalogach | Wszystkie lokalizacje przechodzą walidację przed zapisem |
-| Wersja SkillSync | **Ustawienia → Ogólne** sprawdza dostępne wydanie | Brak wydania jest komunikowany, nie udawany |
+SkillSync is an open-source, cross-platform desktop application powered by **Tauri v2**, **Rust**, **React 18**, and **Tailwind CSS**. It gives teams and individual builders one place to manage prompt skills, compare installed versions with upstream releases, and recover quickly if an update is not right for a project.
 
-## Jak zaktualizować skills AI — szybka odpowiedź
+- **Zero-Configuration Multi-Agent Discovery:** Automatically scans standard agent tool directories:
+  - Claude Code: `~/.claude/skills`
+  - Cursor: `~/.cursor/skills`
+  - Google Antigravity & Gemini CLI: `~/.gemini/config/skills`, `~/.gemini/antigravity/builtin/skills`
+  - OpenAI Codex: `~/.codex/skills`
+  - Agent Skills-compatible tools: `~/.agents/skills`
+  - Custom user-monitored directories configured via the UI
+- **Zero-Rate-Limit GitHub Upstream Tracking:** Checks remote GitHub releases via redirect headers and Atom feeds without exhausting GitHub API rate limits.
+- **Atomic 7-Stage Update Protocol:** Every update creates an automatic pre-update archive snapshot (`~/.skillsync/backups/`) before modifying files. If Git checkouts, file writes, or integrity validation fail, changes are instantly reverted.
+- **Point-in-Time Rollback:** Restore any historical version with exact date-and-time timestamps and SemVer metadata.
+- **Automated Multi-Platform Packaging:** Built-in release scripts generate native installers for macOS (`.dmg`, `.app`) and Windows (`.msi`, `.exe`) with cryptographic SHA-256 manifests.
 
-1. Otwórz SkillSync i pozwól aplikacji przeskanować włączone katalogi.
-2. Wybierz skill z oznaczeniem dostępnej aktualizacji i otwórz szczegóły.
-3. Przeczytaj wersję docelową, changelog oraz ewentualne ostrzeżenie SemVer.
-4. Kliknij **Aktualizuj**. Najpierw powstaje migawka, następnie wykonywana jest aktualizacja i walidacja manifestu.
-5. Jeżeli aktualizacja nie pasuje do projektu, użyj **Szczegóły → Rollback** i wybierz konkretną migawkę.
+---
 
-Nie uruchamiaj aktualizacji „w ciemno” dla repozytorium z własnymi zmianami. SkillSync zatrzyma aktualizację, gdy Git wykryje modyfikacje w śledzonych plikach. Nieśledzone notatki i pliki pomocnicze same w sobie nie powinny blokować aktualizacji.
+<!-- parity: quickstart -->
+## 2. Quick Start in Under 5 Minutes
 
-## Zasady działania aktualizacji
+### Step 1: Install or Run SkillSync
+Download the pre-compiled installer for your operating system from the [Releases](https://github.com/tomaszboloz/SkillSync/releases) page:
+- **macOS:** Download `SkillSync_1.0.0_universal.dmg` or unpack `SkillSync_1.0.0_macos.tar.gz`.
+- **Windows:** Run `SkillSync_1.0.0_x64_en-US.msi` or `SkillSync_1.0.0_x64-setup.exe`.
 
-| Etap | Kontrola | Wynik błędu |
-|---|---|---|
-| 1. Walidacja | Katalog istnieje i ma obsługiwany manifest | Operacja kończy się bez tworzenia zapisu |
-| 2. Sprawdzenie Git | Worktree nie zawiera śledzonych modyfikacji | Aktualizacja jest zablokowana z jasnym komunikatem |
-| 3. Snapshot | Tworzona jest kopia przed zmianą | Brak snapshotu nie jest traktowany jako udana aktualizacja |
-| 4. Pobranie wersji | Git checkout albo pobranie treści upstream | Błąd przechodzi do rollbacku |
-| 5. Synchronizacja | Zmieniany jest `SKILL.md`, `skill.json` albo jawny package manifest | Niezwiązany plik projektu pozostaje nietknięty |
-| 6. Integralność | Sprawdzany jest format `skill.json` i obecność manifestu | Niespójny wynik jest przywracany z backupu |
-
-### Dlaczego problem z `docs`, `gallery` i `packages` nie powinien wrócić?
-
-Sama lokalizacja pod `~/.agents/skills` nie oznacza, że każdy wewnętrzny katalog jest skillem. Wcześniejsza heurystyka traktowała zwykły `package.json` jak manifest, przez co katalogi takie jak `agent-browser/docs`, `hyperframes/packages/aws-lambda` lub `ui-ux-pro-max-skill/gallery` mogły trafić do kolejki aktualizacji. Obecnie są pomijane, a aktualizator dodatkowo odrzuca katalog bez prawidłowego manifestu przed snapshotem, checkoutem i zapisem.
-
-## Porównanie sposobów aktualizacji
-
-| Sposób | Kiedy ma sens | Ryzyko | Co daje SkillSync |
-|---|---|---|---|
-| Ręczny `git pull` | Jeden znany skill Git | Łatwo pominąć tag, status lub backup | Podgląd wersji i transakcja z rollbackiem |
-| Ręczna podmiana plików | Skill bez Git | Ryzyko nadpisania i braku historii | Snapshot oraz walidacja manifestu |
-| Skrypt „aktualizuj wszystko” | Jednolity, kontrolowany fleet | Często nie rozróżnia projektów od skills | Detekcja oparta na manifeście i widoczne ostrzeżenia |
-| SkillSync | Kilka agentów lub ścieżek | Nadal wymaga przeglądu zmian major | Jeden interfejs, kopie, rollback i kontrola Git |
-
-## Instalacja oraz instalatory macOS i Windows
-
-### Oficjalne wydanie
-
-Pobierz paczkę dla swojego systemu z [Releases](https://github.com/tomaszboloz/SkillSync/releases), gdy repozytorium opublikuje oficjalne artefakty. Dla macOS release przygotowuje `.dmg` oraz archiwum aplikacji; dla Windows — instalator `.msi` i instalator `.exe`. Przed instalacją porównaj SHA-256 z manifestem wydania. Podpisanie aplikacji zależy od certyfikatów użytych dla danego wydania.
-
-### Ze źródeł i lokalne pakowanie
-
+Or run directly from source:
 ```bash
+# Clone the repository
 git clone https://github.com/tomaszboloz/SkillSync.git
 cd skillsync
+
+# Install Node dependencies and launch Tauri desktop dev environment
 npm install
 npm run tauri dev
-
-# Buduje pakiet dla bieżącej platformy
-npm run build:release
 ```
 
-Skrypt lokalny tworzy artefakty w `dist-release/`. Workflow release uruchamia osobne joby macOS i Windows, ponieważ natywne bundlery powinny działać na właściwym systemie lub zgodnym runnerze. Dzięki temu tag release może dostarczyć instalatory obu platform, a lokalny build nie udaje builda dla systemu, którego nie kompilował.
+### Step 2: Automatic Discovery
+Upon launch, SkillSync immediately scans default agent paths in parallel. Your installed skills appear in a searchable, filterable dashboard showing:
+- Active version vs latest upstream GitHub release
+- SemVer upgrade severity (Patch, Minor, or Major Breaking Change warning)
+- Direct links to open local directories or upstream GitHub repositories
+- Multi-location detection if a skill is shared across multiple agent environments
 
-## Ustawienia, które warto znać
+---
 
-- **Ogólne:** język, uruchamianie przy logowaniu, minimalizacja do zasobnika i ręczne sprawdzenie wersji SkillSync.
-- **Monitorowane ścieżki:** katalog, zakres agenta oraz przełącznik aktywności. Pasek kart jest responsywny — na małej szerokości układa się w siatkę, bez poziomego scrolla.
-- **Aktualizacje:** częstotliwość sprawdzania, tryb instalacji, współbieżność, retencja backupów i prerelease.
-- **Wygląd:** motyw, kolor akcentu i ograniczenie animacji.
-- **Zaawansowane:** timeout Git, poziom logowania, ścieżka binarki Git i TTL cache.
+<!-- parity: howto_update -->
+## 3. How to Update AI Agent Skills (AEO & Practical Guide)
 
-## Weryfikacja jakości
+### How to update Claude, Codex, Cursor, and Gemini skills automatically
+1. **Identify Outdated Skills:** Open SkillSync or run the scanner. Outdated skills are highlighted with an amber **Update Available** badge and categorized under the `[Updates]` tab.
+2. **Review Upstream Changelogs:** Click **Details** on any skill card to preview the Markdown changelog, commit history, and author release notes.
+3. **Execute Atomic Update:** Click **Update** (or **Update All** in the Update Center).
+   - SkillSync creates an isolated safety snapshot in `~/.skillsync/backups/<skill_id>_<timestamp>.tar.gz`.
+   - Standalone Git skills fetch and checkout the target release tag.
+   - Folder-based skills download upstream updates and update `SKILL.md`, `skill.json`, and explicitly declared package skill manifests.
+   - The engine validates post-update manifest integrity.
+4. **Instant Rollback on Demand:** If a tool behaves unexpectedly with your agent, open **Details ➔ Rollback**, choose the exact snapshot timestamp (e.g. `v1.0.0 (16.09.2026 10:15:32)`), and click **Restore**.
+
+---
+
+<!-- parity: architecture -->
+## 4. System Architecture & Directory Hierarchy
+
+| Directory / File | Responsibility |
+|---|---|
+| `src-tauri/src/services/detector.rs` | Recursive filesystem scanner for `SKILL.md`, valid `skill.json`, and explicitly marked package skill manifests across default agent directories |
+| `src-tauri/src/services/git.rs` | Local Git repository operations (tag resolution, clean worktree verification, checkout) |
+| `src-tauri/src/services/github.rs` | Zero-rate-limit GitHub release checking via HTTP 302 redirects, Atom feeds, and raw content downloads |
+| `src-tauri/src/services/backup.rs` | Gzip tarball snapshots and `.meta.json` sidecars in `~/.skillsync/backups/` |
+| `src-tauri/src/services/orchestrator.rs` | 7-stage atomic update transaction pipeline across multiple target paths |
+| `src/components/` | React 18 UI components (SkillCard, SkillList, SkillDetailModal, UpdateCenterModal, SettingsModal) |
+| `src/store/useSkillStore.ts` | Zustand + Immer reactive state management with error formatting and multi-location telemetry |
+| `src/i18n/` | Modular internationalization engine supporting English, Polish, German, Spanish, French, Japanese, Chinese |
+| `scripts/build_release.py` | Automated multi-platform packager for macOS (DMG/App) and Windows (MSI/EXE) |
+| `.github/workflows/release.yml` | Multi-platform GitHub Actions build matrix for automated releases |
+
+---
+
+<!-- parity: platforms -->
+## 5. Platform-Specific Integration
+
+### Claude Code (`~/.claude/skills`)
+Claude Code loads skills dynamically from `~/.claude/skills/<skill-name>/SKILL.md`. SkillSync detects Claude skills, parses their YAML frontmatter metadata, and syncs updates simultaneously across any other toolchains that reference the same skill.
+
+### Cursor (`~/.cursor/skills`)
+Cursor extensions and custom agent prompts located in `~/.cursor/skills` are monitored automatically. SkillSync checks semantic compatibility and ensures local customizations are never overwritten without a snapshot backup.
+
+### Google Antigravity & Gemini CLI (`~/.gemini/config/skills`, `~/.gemini/antigravity/builtin/skills`)
+Antigravity built-in skills and user-configured skills are discovered automatically. When updating skills installed across both global and Antigravity locations, SkillSync updates all canonical locations in a single coordinated transaction.
+
+### OpenAI Codex & Custom Agents (`~/.agents/skills`)
+Frameworks adhering to the Agent Skills standard (`~/.agents/skills`) are monitored for upstream drift. Dependencies and runtime permissions declared in `skill.json` or `SKILL.md` are audited during each scan.
+
+---
+
+<!-- parity: versioning -->
+## 6. Versioning, SemVer & Classification
+
+SkillSync strictly follows [Semantic Versioning (SemVer 2.0.0)](https://semver.org/):
+- **PATCH (`vX.Y.Z+1`):** Bug fixes, prompt typo corrections, backward-compatible enhancements. Safe to auto-update.
+- **MINOR (`vX.Y+1.0`):** New subagent workflows, additional tool capabilities, backward-compatible additions.
+- **MAJOR (`vX+1.0.0`):** Breaking changes in skill parameters, renamed tool arguments, or altered YAML contracts. SkillSync highlights these with a `⚠️ SemVer Major` warning badge before updating.
+
+---
+
+<!-- parity: quality -->
+## 7. Safety Protocol & Rollback Snapshots
+
+1. **Pre-Update Verification:** Ensures the target directory exists and write permissions are granted.
+2. **Snapshot Creation:** Creates an archive in `~/.skillsync/backups/<skill_id>_<timestamp>.tar.gz` and persists metadata (`snapshot_id`, `created_at`, `original_version`) in a sidecar JSON file.
+3. **Execution & Integrity Check:** If any operation fails or the post-update manifest is invalid JSON/YAML, all updated locations are rolled back to the safety snapshot.
+4. **Offline Capability:** Previously downloaded skills and backups function completely offline without internet connectivity.
+
+---
+
+<!-- parity: packaging -->
+## 8. Automated Packaging for macOS & Windows
+
+SkillSync includes local scripts and CI/CD pipelines to build standalone production application packages:
 
 ```bash
-# Testy Rust: detektor manifestów, Git, konfiguracja, GitHub i aktualizator
-cd src-tauri && cargo test
+# Build desktop application for the current platform (macOS DMG or Windows MSI/EXE)
+npm run build:release
 
-# Testy jednostkowe frontendu, lint i build produkcyjny
-cd .. && npm run test:unit
+# Or build via Python packager with options:
+python3 scripts/build_release.py --platform auto
+```
+
+The packager performs:
+1. Frontend compilation via `npm run build`
+2. Desktop application compilation via Tauri v2
+3. Harvesting installers into `dist-release/macos/` and `dist-release/windows/`
+4. Generation of `RELEASE-MANIFEST.json` and cryptographic `SHA256SUMS.txt`
+
+---
+
+## FAQ
+
+### 1. How do I update Claude Code skills?
+Open SkillSync, choose a skill with an available update, review its release notes, and select **Update**. A Claude skill in `~/.claude/skills` needs a supported manifest, and a Git-backed skill needs a clean tracked worktree.
+
+### 2. How do I update Claude Code skills automatically?
+Configure periodic checks in **Settings → Updates**. Automatic discovery does not replace reviewing a major release or local Git changes.
+
+### 3. How do I update OpenAI Codex skills?
+Enable or add `~/.codex/skills` under Monitored Paths, run a scan, and update the selected skill. A Codex `SKILL.md` is recognized as a skill manifest.
+
+### 4. How do I update Gemini CLI or Antigravity skills?
+Verify the enabled Gemini or Antigravity paths in Settings. SkillSync updates only a discovered directory with a valid manifest, not arbitrary runtime folders.
+
+### 5. Will SkillSync update a regular Node.js project?
+No. Its `package.json` must explicitly enable `skill` or `ai-skill`; a documentation, gallery, or workspace package is ignored.
+
+### 6. Why is package.json alone not a skill manifest?
+Monorepos and tool repositories contain many package files. Treating each one as a skill creates false updates and can overwrite an application or library version.
+
+### 7. What does a dirty-state error mean?
+Git found an uncommitted modification in a tracked file. Commit or deliberately set aside that change after reviewing the diff, then retry the update.
+
+### 8. Do untracked files block an update?
+They do not block it merely for being untracked. Git may still stop a checkout if one would be overwritten by the selected upstream version.
+
+### 9. Will an update overwrite my prompts?
+An update does not start with modified tracked Git files. SkillSync creates a snapshot before the file-changing stage so rollback remains available.
+
+### 10. Where are backups stored?
+They are stored by default in `~/.skillsync/backups/`. The skill detail view lists snapshots and timestamps.
+
+### 11. How do I restore an earlier skill version?
+Open the skill details, navigate to rollback, select the required snapshot, and restore it. Restoration returns that target location to the archived state.
+
+### 12. Can I monitor a custom skills folder?
+Yes. Add it in **Settings → Monitored Paths**, choose an agent scope, and save the preferences.
+
+### 13. Can one update synchronize several locations?
+Yes, when scanning identifies them as the same skill. Each target is validated before mutation and receives a snapshot.
+
+### 14. Can I install prerelease skills?
+Use the prerelease option in **Settings → Updates**. Prereleases deserve extra review because their contract may change before a stable release.
+
+### 15. What is the difference between patch, minor, and major?
+A patch normally fixes defects, a minor version adds compatible functionality, and a major version may contain breaking changes. Read a major release before updating it.
+
+### 16. Does SkillSync work offline?
+Local discovery and existing backups are local operations. Checking upstream or downloading an update requires access to that skill’s remote source.
+
+### 17. Why is my skill missing from the list?
+Confirm its monitored path is enabled and that the folder contains `SKILL.md`, valid `skill.json`, or explicit package-skill metadata. A README alone is not a manifest.
+
+### 18. Why was an update rejected before a backup was created?
+That is intentional. A directory without a valid skill manifest is not a safe transaction target, so the app performs no write against it.
+
+### 19. Where can I check the SkillSync version?
+Open **Settings → General** and choose **Check for updates**. The result shows the current version and, when available, a release link.
+
+### 20. Does SkillSync upload my prompts?
+Discovery, validation, and snapshots are local. Network access is used only to check or retrieve data from the selected skill’s upstream source.
+
+### 21. What should I include in an update bug report?
+Include the exact error, app version, operating system, and whether the skill uses Git, `SKILL.md`, or `skill.json`. Do not share private prompts or full personal paths unless they are necessary and safe to disclose.
+
+---
+
+<!-- parity: acceptance -->
+## 9. Quality Gates & Verification
+
+Before every release, run the comprehensive verification suite:
+
+```bash
+# Run Rust core unit and integration tests (detector, GitHub, atomic update, rollback)
+cd src-tauri && cargo test -- --nocapture
+
+# Run frontend TypeScript type-check and Vite production build
+cd .. && npm run build
+
+# Check TypeScript/React code style and known dependency vulnerabilities
 npm run lint
-npm run build
-
-# Znane podatności pakietów Node.js
 npm audit
 ```
 
-Testy obejmują `SKILL.md`, `skill.json`, jawne metadane `skill`/`ai-skill`, odrzucenie niepoprawnego JSON oraz trzy regresje dla katalogów `docs`, `gallery` i `packages`. Są deterministyczne: używają katalogów tymczasowych zamiast prywatnych skills użytkownika.
+---
 
-## FAQ — aktualizacja skills, Claude Code, Codex i Gemini
+## Search intent and keyword coverage
 
-### 1. Jak zaktualizować skills w Claude Code?
-Otwórz SkillSync, wybierz skill z aktualizacją, sprawdź changelog i kliknij **Aktualizuj**. Dla `~/.claude/skills` aplikacja wymaga prawidłowego manifestu oraz czystego worktree, jeśli skill jest repozytorium Git.
+This documentation answers real user tasks; it does not promise ranking results. Covered intent phrases include: skill management tool, update skills, AI skills updater, prompt skills manager, how to update skills, how to update Claude Code skills, how to update Claude skills automatically, how to update Codex skills, how to update OpenAI Codex skills, how to update Cursor skills, how to update Gemini skills, how to update Gemini CLI skills, how to update Antigravity skills, manage prompt skills efficiently, sync skills across projects, safe skill update, skill backup, skill rollback, skill version control, prompt version control, monitored skill paths, SKILL.md detector, skill.json manifest, ai-skill manifest, package.json skill manifest, Git dirty state skills, Git skill update, AI agent skills manager, Claude Code skills manager, Codex skills manager, Cursor skills manager, Gemini skills manager, restore a previous skill version, SkillSync version check, prompt updater, AI coding agent tools, Agent Skills manager.
 
-### 2. Jak zaktualizować skills w Claude Code automatycznie?
-Włącz cykliczne sprawdzanie w **Ustawienia → Aktualizacje**. Automatyczne wykrycie nowej wersji nie zastępuje przeglądu wydania major ani lokalnych zmian w repozytorium.
+---
 
-### 3. Jak zaktualizować skills w OpenAI Codex?
-Dodaj lub włącz `~/.codex/skills` w Monitorowanych ścieżkach, przeskanuj katalog i uruchom aktualizację właściwego skilla. Codexowy `SKILL.md` jest traktowany jako manifest.
+## 📄 License & Attribution
+Built by [Tomasz Bołoz](https://www.damtox.pl). Distributed under the MIT License. See [LICENSE](LICENSE) for details.
 
-### 4. Jak zaktualizować skills Gemini CLI lub Antigravity?
-Sprawdź włączone ścieżki Gemini/Antigravity w ustawieniach. SkillSync aktualizuje tylko znalezione skills z prawidłowym manifestem, nie dowolne katalogi runtime.
+## Contributing and security
 
-### 5. Czy SkillSync zaktualizuje zwykły projekt Node.js?
-Nie. `package.json` musi zawierać jawne aktywne metadane `skill` lub `ai-skill`; zwykły pakiet, dokumentacja albo galeria są pomijane.
-
-### 6. Dlaczego `package.json` nie wystarcza do wykrycia skilla?
-W monorepozytoriach i repozytoriach narzędziowych taki plik występuje w wielu katalogach. Wykrywanie po samym pliku powoduje fałszywe aktualizacje i ryzyko nadpisania wersji aplikacji lub biblioteki.
-
-### 7. Co oznacza błąd „dirty state”?
-Git znalazł niezacommitowaną zmianę w pliku śledzonym. Zacommituj albo świadomie odłóż zmianę po sprawdzeniu różnicy, a następnie ponów aktualizację.
-
-### 8. Czy nieśledzone pliki blokują aktualizację skills?
-Nie powinny blokować jej tylko dlatego, że są nieśledzone. Git może jednak zatrzymać checkout, jeśli taki plik koliduje z plikiem pobieranym z wersji docelowej.
-
-### 9. Czy aktualizacja nadpisze moje prompty?
-Aktualizacja nie rozpoczyna się przy zmodyfikowanych śledzonych plikach Git. Przed zmianą powstaje snapshot, z którego można wykonać rollback.
-
-### 10. Gdzie znajdują się kopie zapasowe?
-Domyślnie w `~/.skillsync/backups/`. Szczegóły skilla pokazują dostępne migawki i ich daty.
-
-### 11. Jak przywrócić starszą wersję skilla?
-Otwórz szczegóły skilla, przejdź do rollbacku i wybierz snapshot. Przywrócenie odtwarza archiwalny stan wskazanej lokalizacji.
-
-### 12. Czy mogę dodać własny katalog skills?
-Tak. Dodaj ścieżkę w **Ustawienia → Monitorowane ścieżki**, wybierz zakres i zapisz ustawienia.
-
-### 13. Czy jedna aktualizacja synchronizuje kilka lokalizacji?
-Tak, jeśli skaner rozpozna je jako tę samą pozycję. Każdy cel jest walidowany przed modyfikacją i otrzymuje snapshot.
-
-### 14. Czy mogę instalować prerelease skills?
-Opcję prerelease kontroluje zakładka Aktualizacje. Wersje prerelease wymagają szczególnej ostrożności, ponieważ mogą zmieniać kontrakt skilla.
-
-### 15. Czym różni się patch, minor i major?
-Patch zwykle naprawia błędy, minor dodaje kompatybilne funkcje, a major może zawierać zmiany łamiące. Wersję major warto przeczytać przed aktualizacją.
-
-### 16. Czy SkillSync działa bez internetu?
-Przegląd lokalnych skills i wcześniej wykonane backupy są lokalne. Sprawdzenie upstreamu lub pobranie aktualizacji wymaga dostępu do odpowiedniego zdalnego źródła.
-
-### 17. Dlaczego skill nie pojawia się na liście?
-Sprawdź, czy ścieżka jest włączona oraz czy katalog zawiera `SKILL.md`, poprawny `skill.json` albo jawny manifest package skilla. Zwykły README nie jest manifestem.
-
-### 18. Dlaczego aktualizacja została odrzucona przed backupem?
-To celowe zabezpieczenie. Katalog bez prawidłowego manifestu nie jest bezpiecznym celem transakcji, więc aplikacja nie wykonuje na nim żadnego zapisu.
-
-### 19. Gdzie sprawdzić wersję SkillSync?
-Wejdź w **Ustawienia → Ogólne** i użyj przycisku **Sprawdź aktualizacje**. Wynik wskazuje bieżącą wersję oraz link do release, gdy release istnieje.
-
-### 20. Czy SkillSync wysyła moje prompty do chmury?
-Skanowanie, walidacja i backup działają lokalnie. Połączenie sieciowe jest potrzebne tylko do sprawdzania lub pobierania danych z upstreamu wybranego skilla.
-
-### 21. Jak zgłosić błąd aktualizacji skills?
-Zachowaj pełny komunikat, wersję aplikacji, system operacyjny oraz informację, czy skill używa Git, `SKILL.md` czy `skill.json`. Nie publikuj prywatnych promptów ani pełnych ścieżek, jeśli nie są potrzebne.
-
-## Frazy i intencje wyszukiwania
-
-Poniższe frazy opisują rzeczywiste zadania, które dokumentacja pokrywa, a nie obietnicę pozycji w wynikach: aktualizacja skills, aktualizacja skills AI, skills Claude Code aktualizacja, jak zaktualizować skills, jak zaktualizować skills w Claude Code, aktualizacja skills Codex, aktualizacja skills OpenAI Codex, aktualizacja skills Cursor, aktualizacja skills Gemini, aktualizacja skills Gemini CLI, aktualizacja skills Antigravity, menedżer skills AI, manager prompt skills, synchronizacja skills, synchronizacja promptów AI, bezpieczna aktualizacja skills, backup skills, rollback skills, wersjonowanie skills, kontrola wersji promptów, monitorowane ścieżki skills, wykrywanie SKILL.md, manifest skill.json, manifest ai-skill, package.json skill, Git dirty state skills, aktualizacja skills Git, narzędzie do zarządzania skills, Agent Skills manager, Claude Code skills manager, Codex skills manager, jak przywrócić skill, sprawdzanie wersji SkillSync, aktualizator promptów AI, aktualizacja narzędzi agentów AI, skills dla programistów.
-
-## Licencja
-
-SkillSync rozwija [Tomasz Bołoz](https://www.damtox.pl). Projekt jest udostępniany na warunkach licencji MIT. Zobacz [LICENSE](LICENSE).
-
-## Współtworzenie i bezpieczeństwo
-
-Zgłoszenia błędów, propozycje i zasady wkładu opisuje [CONTRIBUTING.md](CONTRIBUTING.md). Zanim opublikujesz issue lub log, usuń tokeny, prywatne prompty, dane klientów i pełne ścieżki domowe. Luki bezpieczeństwa zgłaszaj zgodnie z [SECURITY.md](SECURITY.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a change and [SECURITY.md](SECURITY.md) for responsible vulnerability reporting. Never include tokens, private prompts, customer data, or full home-directory paths in public issues or logs.
