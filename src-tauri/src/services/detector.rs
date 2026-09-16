@@ -514,56 +514,29 @@ mod tests {
     }
 
     #[test]
-    fn test_detect_claude_seo_audit() {
-        let path = PathBuf::from("/Users/tomaszboloz/.claude/skills/seo-audit");
-        if path.exists() {
-            let res = SkillDetector::inspect_candidate_directory(
-                &path,
-                &PathBuf::from("/Users/tomaszboloz/.claude/skills"),
-            );
-            assert!(res.is_some());
-            let skill = res.unwrap();
-            println!("Detected skill: {:?}", skill);
-            assert_eq!(skill.name, "seo-audit");
-            assert!(
-                !skill.current_version.is_empty(),
-                "installed version must be read from the local manifest"
-            );
-            assert_eq!(
-                skill.remote_url.as_deref(),
-                Some("https://github.com/AgriciDaniel/claude-seo")
-            );
-            assert!(skill.compatibility.is_some());
-        }
+    fn detects_claude_skill_scope_from_a_fixture() {
+        let root = fixture_root("claude-scope");
+        let skills_dir = root.join(".claude/skills");
+        let skill_dir = skills_dir.join("example-skill");
+        write_file(
+            &skill_dir.join("SKILL.md"),
+            "---\nname: example-skill\nversion: 1.0.0\n---\n",
+        );
+
+        let skills = SkillDetector::scan_directories(&[skills_dir]);
+
+        assert_eq!(skills.len(), 1);
+        assert_eq!(skills[0].agent_scope, AgentScope::Claude);
+
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
-    fn test_scan_all_default_paths() {
-        let paths = crate::models::config::PathsConfig::discover_default_paths();
-        let path_bufs: Vec<PathBuf> = paths.into_iter().map(|p| p.path).collect();
-        let skills = SkillDetector::scan_directories(&path_bufs);
-        println!(
-            "Total skills discovered across all default paths: {}",
-            skills.len()
-        );
-        assert!(
-            skills.len() > 100,
-            "Should discover more than 100 skills on system"
-        );
+    fn scan_is_safe_for_empty_and_missing_monitored_paths() {
+        let missing = fixture_root("missing").join("does-not-exist");
 
-        // Find a skill that exists in multiple locations
-        let multi_loc_skills: Vec<_> = skills
-            .iter()
-            .filter(|s| s.installed_locations.len() > 1)
-            .collect();
-        println!(
-            "Skills installed across multiple locations: {}",
-            multi_loc_skills.len()
-        );
-        assert!(
-            !multi_loc_skills.is_empty(),
-            "Should detect skills installed in multiple locations"
-        );
+        assert!(SkillDetector::scan_directories(&[]).is_empty());
+        assert!(SkillDetector::scan_directories(&[missing]).is_empty());
     }
 
     #[test]

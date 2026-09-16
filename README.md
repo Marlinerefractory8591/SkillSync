@@ -51,6 +51,10 @@ Download the pre-compiled installer for your operating system from the [Releases
 - **macOS:** Download `SkillSync_1.0.0_universal.dmg` or unpack `SkillSync_1.0.0_macos.tar.gz`.
 - **Windows:** Run `SkillSync_1.0.0_x64_en-US.msi` or `SkillSync_1.0.0_x64-setup.exe`.
 
+#### macOS security and developer signature
+
+The public CI build is not Developer ID signed or Apple-notarized unless the release explicitly says it is. Before opening a downloaded application, verify its SHA-256 checksum against `checksums.sha256` in the same GitHub Release. If Gatekeeper blocks an unsigned build, use Finder: Control-click the app, choose **Open**, then confirm **Open** in the dialog. Do this only for an asset downloaded from the official [SkillSync Releases](https://github.com/tomaszboloz/SkillSync/releases) page after verifying the checksum. You can inspect a signed build with `codesign --verify --deep --strict /Applications/SkillSync.app` and `spctl --assess --type execute /Applications/SkillSync.app`.
+
 Or run directly from source:
 ```bash
 # Clone the repository

@@ -15,7 +15,7 @@ impl GitService {
         }
         let repo = Repository::open(path).ok()?;
         let remote = repo.find_remote("origin").ok()?;
-        remote.url().map(|u| u.to_string())
+        remote.url().ok().map(str::to_owned)
     }
 
     pub fn get_current_ref_name(path: &Path) -> Option<String> {
@@ -25,7 +25,7 @@ impl GitService {
         let repo = Repository::open(path).ok()?;
         let head = repo.head().ok()?;
         if head.is_branch() {
-            head.shorthand().map(|s| s.to_string())
+            head.shorthand().ok().map(str::to_owned)
         } else {
             // Detached HEAD or tag
             head.target().map(|oid| oid.to_string()[..7].to_string())
@@ -62,7 +62,7 @@ impl GitService {
         let head_id = head_commit.id();
 
         let tags = repo.tag_names(None).ok()?;
-        for tag_name in tags.iter().flatten() {
+        for tag_name in tags.iter().flatten().flatten() {
             let refname = format!("refs/tags/{}", tag_name);
             if let Ok(reference) = repo.find_reference(&refname) {
                 if let Ok(commit) = reference.peel_to_commit() {
@@ -190,7 +190,8 @@ impl GitService {
         }
         let repo = Repository::open(path).ok()?;
         let tags = repo.tag_names(None).ok()?;
-        let mut tag_list: Vec<String> = tags.iter().flatten().map(|s| s.to_string()).collect();
+        let mut tag_list: Vec<String> =
+            tags.iter().flatten().flatten().map(str::to_owned).collect();
 
         // Sort descending by SemVer
         tag_list.sort_by(|a, b| {
@@ -368,10 +369,8 @@ mod tests {
         ));
 
         GitService::fetch_and_checkout_tag(&path, "v1.0.0", true).unwrap();
-        assert_eq!(
-            fs::read_to_string(path.join("SKILL.md")).unwrap(),
-            "initial\n"
-        );
+        let restored = fs::read_to_string(path.join("SKILL.md")).unwrap();
+        assert_eq!(restored.replace("\r\n", "\n"), "initial\n");
 
         let _ = fs::remove_dir_all(path);
     }

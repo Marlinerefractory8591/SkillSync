@@ -13,7 +13,7 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  NODE_VERSION: '20'
+  NODE_VERSION: '24'
   RUST_VERSION: 'stable'
 
 permissions:

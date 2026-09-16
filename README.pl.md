@@ -69,7 +69,11 @@ Sama lokalizacja pod `~/.agents/skills` nie oznacza, że każdy wewnętrzny kata
 
 ### Oficjalne wydanie
 
-Pobierz paczkę dla swojego systemu z [Releases](https://github.com/tomaszboloz/SkillSync/releases), gdy repozytorium opublikuje oficjalne artefakty. Dla macOS release przygotowuje `.dmg` oraz archiwum aplikacji; dla Windows — instalator `.msi` i instalator `.exe`. Przed instalacją porównaj SHA-256 z manifestem wydania. Podpisanie aplikacji zależy od certyfikatów użytych dla danego wydania.
+Pobierz paczkę dla swojego systemu z [Releases](https://github.com/tomaszboloz/SkillSync/releases), gdy repozytorium opublikuje oficjalne artefakty. Dla macOS release przygotowuje `.dmg` oraz archiwum aplikacji; dla Windows — instalator `.msi` i instalator `.exe`. Przed instalacją porównaj SHA-256 z manifestem wydania.
+
+### macOS: Gatekeeper i podpis dewelopera
+
+Publiczny build CI nie jest podpisany certyfikatem Apple Developer ID ani notaryzowany, chyba że opis konkretnego wydania wyraźnie to potwierdza. Przed uruchomieniem pobranego pliku porównaj jego SHA-256 z `checksums.sha256` z tego samego GitHub Release. Jeżeli Gatekeeper zablokuje niepodpisaną aplikację, w Finderze kliknij aplikację z wciśniętym Control, wybierz **Otwórz**, a następnie potwierdź **Otwórz**. Rób to wyłącznie dla pliku pobranego z oficjalnej strony [SkillSync Releases](https://github.com/tomaszboloz/SkillSync/releases) po sprawdzeniu sumy kontrolnej. Podpisaną aplikację możesz zweryfikować poleceniami `codesign --verify --deep --strict /Applications/SkillSync.app` oraz `spctl --assess --type execute /Applications/SkillSync.app`.
 
 ### Ze źródeł i lokalne pakowanie
 
