@@ -4,6 +4,8 @@ import type { SkillMetadata } from "../types/skillsync";
 vi.mock("../lib/ipc", () => ({
   api: {
     updateSingleSkill: vi.fn(),
+    checkAppUpdate: vi.fn(),
+    installAppUpdate: vi.fn(),
   },
 }));
 
@@ -33,12 +35,70 @@ const updateableSkill: SkillMetadata = {
 describe("batchUpdateAll", () => {
   beforeEach(() => {
     vi.mocked(api.updateSingleSkill).mockReset();
+    vi.mocked(api.checkAppUpdate).mockReset();
+    vi.mocked(api.installAppUpdate).mockReset();
     useSkillStore.setState({
       skills: [{ ...updateableSkill }],
       selectedSkill: { ...updateableSkill },
       error: null,
       batchUpdating: false,
       batchProgress: { total: 0, completed: 0 },
+    });
+  });
+
+  it("stores an available application update for the persistent footer", async () => {
+    vi.mocked(api.checkAppUpdate).mockResolvedValueOnce({
+      currentVersion: "1.1.0",
+      latestVersion: "1.1.1",
+      updateAvailable: true,
+      releaseUrl:
+        "https://github.com/tomaszboloz/SkillSync/releases/tag/v1.1.1",
+    });
+
+    await useSkillStore.getState().checkAppUpdate();
+
+    const state = useSkillStore.getState();
+    expect(state.isCheckingAppUpdate).toBe(false);
+    expect(state.appUpdate?.updateAvailable).toBe(true);
+    expect(state.appUpdate?.latestVersion).toBe("1.1.1");
+  });
+
+  it("reports signed update download progress before restart", async () => {
+    useSkillStore.setState({
+      appUpdate: {
+        currentVersion: "1.1.0",
+        latestVersion: "1.1.1",
+        updateAvailable: true,
+        releaseUrl: "https://github.com/tomaszboloz/SkillSync/releases",
+      },
+    });
+    vi.mocked(api.installAppUpdate).mockImplementationOnce(
+      async (onProgress) => {
+        onProgress({
+          phase: "downloading",
+          downloadedBytes: 50,
+          contentLength: 100,
+        });
+        onProgress({
+          phase: "installing",
+          downloadedBytes: 100,
+          contentLength: null,
+        });
+        onProgress({
+          phase: "restarting",
+          downloadedBytes: 100,
+          contentLength: null,
+        });
+      },
+    );
+
+    await useSkillStore.getState().installAppUpdate();
+
+    const state = useSkillStore.getState();
+    expect(state.appUpdateProgress).toEqual({
+      phase: "restarting",
+      downloadedBytes: 100,
+      contentLength: 100,
     });
   });
 

@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { useSkillStore } from "./store/useSkillStore";
 import { Navbar } from "./components/Navbar";
 import { SkillList } from "./components/SkillList";
@@ -6,15 +6,26 @@ import { SkillDetailModal } from "./components/SkillDetailModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { UpdateCenterModal } from "./components/UpdateCenterModal";
 import { DirtyWorktreeConfirmation } from "./components/DirtyWorktreeConfirmation";
+import { AppUpdateFooter } from "./components/AppUpdateFooter";
 import { AlertCircle, X } from "lucide-react";
 
 export const App: React.FC = () => {
-  const { fetchSkills, loadConfig, error, theme } = useSkillStore();
+  const { fetchSkills, loadConfig, checkAppUpdate, config, error, theme } =
+    useSkillStore();
+  const autoCheckStartedRef = useRef(false);
 
   useEffect(() => {
     fetchSkills();
     loadConfig();
   }, [fetchSkills, loadConfig]);
+
+  useEffect(() => {
+    if (!config?.general.checkAppUpdates || autoCheckStartedRef.current) {
+      return;
+    }
+    autoCheckStartedRef.current = true;
+    void checkAppUpdate();
+  }, [checkAppUpdate, config]);
 
   // Ensure root theme class is synced
   useEffect(() => {
@@ -32,7 +43,7 @@ export const App: React.FC = () => {
       <Navbar />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 pb-28 pt-8 sm:px-6 lg:px-8">
         {/* Error Toast / Banner */}
         {error && (
           <div className="mb-6 p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-center justify-between gap-3 text-xs text-rose-400">
@@ -58,6 +69,7 @@ export const App: React.FC = () => {
       <SettingsModal />
       <UpdateCenterModal />
       <DirtyWorktreeConfirmation />
+      <AppUpdateFooter />
     </div>
   );
 };

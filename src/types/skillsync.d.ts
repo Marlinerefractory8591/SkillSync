@@ -115,3 +115,12 @@ export interface AppUpdateInfo {
   updateAvailable: boolean;
   releaseUrl: string;
 }
+
+export type AppUpdatePhase =
+  "idle" | "checking" | "downloading" | "installing" | "restarting" | "error";
+
+export interface AppUpdateProgress {
+  phase: AppUpdatePhase;
+  downloadedBytes: number;
+  contentLength: number | null;
+}

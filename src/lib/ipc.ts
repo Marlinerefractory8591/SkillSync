@@ -1,9 +1,14 @@
 import {
   AppConfig,
+  AppUpdateProgress,
   AppUpdateInfo,
   BackupSnapshot,
   SkillMetadata,
 } from "../types/skillsync";
+
+const APP_RELEASES_URL = "https://github.com/tomaszboloz/SkillSync/releases";
+
+type AppUpdateProgressHandler = (progress: AppUpdateProgress) => void;
 
 // Check if running inside Tauri window
 export const isTauriEnvironment = (): boolean => {
@@ -336,25 +341,97 @@ export const api = {
 
   async checkAppUpdate(): Promise<AppUpdateInfo> {
     if (isTauriEnvironment()) {
-      const { invoke } = await import("@tauri-apps/api/core");
-      return await invoke<AppUpdateInfo>("check_app_update");
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const update = await check();
+
+      if (update) {
+        return {
+          currentVersion: update.currentVersion,
+          latestVersion: update.version,
+          updateAvailable: true,
+          releaseUrl: APP_RELEASES_URL,
+        };
+      }
+
+      const { getVersion } = await import("@tauri-apps/api/app");
+      return {
+        currentVersion: await getVersion(),
+        latestVersion: null,
+        updateAvailable: false,
+        releaseUrl: APP_RELEASES_URL,
+      };
     }
 
     return {
-      currentVersion: "1.0.0",
+      currentVersion: "Browser preview",
       latestVersion: null,
       updateAvailable: false,
-      releaseUrl: "https://github.com/tomaszboloz/SkillSync/releases",
+      releaseUrl: APP_RELEASES_URL,
     };
   },
 
   async getAppVersion(): Promise<string> {
     if (isTauriEnvironment()) {
-      const { invoke } = await import("@tauri-apps/api/core");
-      return await invoke<string>("get_app_version");
+      const { getVersion } = await import("@tauri-apps/api/app");
+      return await getVersion();
     }
 
-    return "1.0.0";
+    return "Browser preview";
+  },
+
+  async installAppUpdate(onProgress: AppUpdateProgressHandler): Promise<void> {
+    if (!isTauriEnvironment()) {
+      throw new Error(
+        "Automatic updates are available only in the installed SkillSync desktop app.",
+      );
+    }
+
+    const [{ check }, { relaunch }] = await Promise.all([
+      import("@tauri-apps/plugin-updater"),
+      import("@tauri-apps/plugin-process"),
+    ]);
+    const update = await check();
+    if (!update) {
+      throw new Error("No newer SkillSync update is available.");
+    }
+
+    let downloadedBytes = 0;
+    await update.downloadAndInstall(
+      (event) => {
+        if (event.event === "Started") {
+          onProgress({
+            phase: "downloading",
+            downloadedBytes: 0,
+            contentLength: event.data.contentLength ?? null,
+          });
+          return;
+        }
+
+        if (event.event === "Progress") {
+          downloadedBytes += event.data.chunkLength;
+          onProgress({
+            phase: "downloading",
+            downloadedBytes,
+            contentLength: null,
+          });
+          return;
+        }
+
+        onProgress({
+          phase: "installing",
+          downloadedBytes,
+          contentLength: null,
+        });
+      },
+      { restartAfterInstall: true },
+    );
+
+    onProgress({
+      phase: "restarting",
+      downloadedBytes,
+      contentLength: null,
+    });
+    await relaunch();
   },
 
   async checkoutCustomVersion(

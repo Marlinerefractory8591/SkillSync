@@ -74,6 +74,8 @@ Upon launch, SkillSync immediately scans default agent paths in parallel. Your i
 - Direct links to open local directories or upstream GitHub repositories
 - Multi-location detection if a skill is shared across multiple agent environments
 
+The persistent footer also checks the signed SkillSync update manifest on launch (when enabled in Settings), shows the release state, and offers **Download and install**. It downloads the matching macOS or Windows package, verifies its signature with the embedded public key, installs it, and restarts SkillSync when required. The content area reserves space above the footer so no cards are obscured.
+
 ---
 
 <!-- parity: howto_update -->

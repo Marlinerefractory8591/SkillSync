@@ -2,6 +2,19 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-09-17
+
+### Fixed
+
+- Check for a new SkillSync release automatically on application launch when the setting is enabled.
+- Show the installed and available application version in a persistent bottom footer, with a manual refresh action.
+- Download, verify with the embedded public key, install and restart signed SkillSync updates directly from the persistent footer.
+- Reserve bottom content space so the fixed footer cannot cover the final cards.
+
+### Security
+
+- Publish a signed Tauri updater package and `latest.json` manifest for macOS and Windows; the private signing key is kept only in GitHub Actions secrets.
+
 ## [1.1.0] - 2026-09-16
 
 ### Added
@@ -44,3 +57,4 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 [1.0.0]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.0.0
 [1.1.0]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.1.0
+[1.1.1]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.1.1

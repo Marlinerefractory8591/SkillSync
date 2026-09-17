@@ -1,6 +1,12 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
-import { SkillMetadata, AppConfig, ManagedItemType } from "../types/skillsync";
+import {
+  SkillMetadata,
+  AppConfig,
+  AppUpdateProgress,
+  ManagedItemType,
+  AppUpdateInfo,
+} from "../types/skillsync";
 import { api } from "../lib/ipc";
 import { Language } from "../i18n/types";
 
@@ -37,6 +43,10 @@ interface SkillState {
   theme: "dark" | "light";
   language: Language;
   batchUpdating: boolean;
+  appUpdate: AppUpdateInfo | null;
+  isCheckingAppUpdate: boolean;
+  appUpdateError: string | null;
+  appUpdateProgress: AppUpdateProgress;
   pendingDirtyUpdate: DirtyUpdateConfirmation | null;
   batchProgress: {
     total: number;
@@ -68,6 +78,8 @@ interface SkillState {
   setLanguage: (lang: Language) => void;
   loadConfig: () => Promise<void>;
   saveConfig: (config: AppConfig) => Promise<void>;
+  checkAppUpdate: () => Promise<void>;
+  installAppUpdate: () => Promise<void>;
 }
 
 export const useSkillStore = create<SkillState>()(
@@ -91,6 +103,14 @@ export const useSkillStore = create<SkillState>()(
         (localStorage.getItem("skillsync_lang") as Language)) ||
       "pl",
     batchUpdating: false,
+    appUpdate: null,
+    isCheckingAppUpdate: false,
+    appUpdateError: null,
+    appUpdateProgress: {
+      phase: "idle",
+      downloadedBytes: 0,
+      contentLength: null,
+    },
     pendingDirtyUpdate: null,
     batchProgress: {
       total: 0,
@@ -373,6 +393,64 @@ export const useSkillStore = create<SkillState>()(
       } catch (err: unknown) {
         set((state) => {
           state.error = formatError(err, "Rollback failed");
+        });
+      }
+    },
+
+    checkAppUpdate: async () => {
+      set((state) => {
+        state.isCheckingAppUpdate = true;
+        state.appUpdateError = null;
+        state.appUpdateProgress.phase = "checking";
+      });
+      try {
+        const appUpdate = await api.checkAppUpdate();
+        set((state) => {
+          state.appUpdate = appUpdate;
+          state.isCheckingAppUpdate = false;
+          state.appUpdateProgress.phase = "idle";
+        });
+      } catch (err: unknown) {
+        set((state) => {
+          state.isCheckingAppUpdate = false;
+          state.appUpdateError = formatError(
+            err,
+            "Nie udało się sprawdzić aktualizacji SkillSync.",
+          );
+          state.appUpdateProgress.phase = "error";
+        });
+      }
+    },
+
+    installAppUpdate: async () => {
+      if (!get().appUpdate?.updateAvailable) return;
+
+      set((state) => {
+        state.appUpdateError = null;
+        state.appUpdateProgress = {
+          phase: "checking",
+          downloadedBytes: 0,
+          contentLength: null,
+        };
+      });
+
+      try {
+        await api.installAppUpdate((progress) => {
+          set((state) => {
+            state.appUpdateProgress = {
+              ...progress,
+              contentLength:
+                progress.contentLength ?? state.appUpdateProgress.contentLength,
+            };
+          });
+        });
+      } catch (err: unknown) {
+        set((state) => {
+          state.appUpdateError = formatError(
+            err,
+            "SkillSync could not install the update.",
+          );
+          state.appUpdateProgress.phase = "error";
         });
       }
     },

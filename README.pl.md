@@ -61,6 +61,10 @@ Dla pozostałych instalacji pakietowych narzędzie może bezpiecznie monitorowa�
 
 ## Zasady działania aktualizacji
 
+### Aktualizacja samego SkillSync
+
+Przy uruchomieniu aplikacja automatycznie sprawdza podpisany manifest nowego wydania SkillSync, jeśli w **Ustawienia → Ogólne** włączono sprawdzanie aktualizacji. Stan jest zawsze widoczny w przyklejonym footerze: bieżąca lub dostępna wersja, ręczne **Sprawdź teraz** oraz **Pobierz i zainstaluj**. Aktualizator pobiera właściwy pakiet macOS lub Windows, weryfikuje podpis zapisanym w aplikacji kluczem publicznym, instaluje aktualizację i uruchamia SkillSync ponownie, gdy jest to wymagane. Lista zasobów ma dolny odstęp, więc footer nie zasłania ostatnich kart.
+
 | Etap | Kontrola | Wynik błędu |
 |---|---|---|
 | 1. Walidacja | Katalog istnieje i ma obsługiwany manifest | Operacja kończy się bez tworzenia zapisu |

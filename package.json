@@ -1,7 +1,7 @@
 {
   "name": "skillsync",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "A secure, cross-platform desktop manager for discovering, checking, updating, and rolling back AI agent skills.",
   "author": "Tomasz Bołoz <https://www.damtox.pl>",
   "license": "MIT",
@@ -41,6 +41,7 @@
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-fs": "^2.0.0",
     "@tauri-apps/plugin-notification": "^2.0.0",
+    "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-shell": "^2.0.0",
     "@tauri-apps/plugin-updater": "^2.0.0",
     "clsx": "^2.1.1",
@@ -54,9 +55,9 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@tailwindcss/postcss": "^4.3.3",
     "@tauri-apps/cli": "^2.0.0",
     "@types/node": "^22.5.5",
-    "@tailwindcss/postcss": "^4.3.3",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",

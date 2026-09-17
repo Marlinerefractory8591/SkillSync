@@ -1,6 +1,6 @@
 [package]
 name = "skillsync"
-version = "1.1.0"
+version = "1.1.1"
 description = "High-Performance Cross-Platform AI Agent Skills Manager"
 authors = ["Tomasz Bołoz <https://www.damtox.pl>"]
 license = "MIT"
@@ -19,6 +19,7 @@ tauri-build = { version = "2.0", features = [] }
 [dependencies]
 tauri = { version = "2.0", features = ["tray-icon"] }
 tauri-plugin-updater = "2.0"
+tauri-plugin-process = "2.0"
 tauri-plugin-notification = "2.0"
 tauri-plugin-fs = "2.0"
 tauri-plugin-shell = "2.0"
