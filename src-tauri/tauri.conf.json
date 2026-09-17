@@ -47,7 +47,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI4RjhDMTE5NDEyMERBRkYKUldULzJpQkJHY0g0dUhPbU9DM056RHc4M0hienJ2KzhrV0tEL0pxKzZabUgyS0FldWM3Zk9MYjAKTAU",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI4RjhDMTE5NDEyMERBRkYKUldULzJpQkJHY0g0dUhPbU9DM056RHc4M0hienJ2KzhrV0tEL0pxKzZabUgyS0FldWM3Zk9MYjAK",
       "endpoints": [
         "https://github.com/tomaszboloz/SkillSync/releases/latest/download/latest.json"
       ],

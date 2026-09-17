@@ -7,6 +7,7 @@ import {
 } from "../types/skillsync";
 
 const APP_RELEASES_URL = "https://github.com/tomaszboloz/SkillSync/releases";
+const isDevelopmentBuild = import.meta.env.DEV;
 
 type AppUpdateProgressHandler = (progress: AppUpdateProgress) => void;
 
@@ -341,6 +342,22 @@ export const api = {
 
   async checkAppUpdate(): Promise<AppUpdateInfo> {
     if (isTauriEnvironment()) {
+      const { getVersion } = await import("@tauri-apps/api/app");
+      const currentVersion = await getVersion();
+
+      // A local `tauri dev` build cannot be updated from a public release and
+      // a release manifest may not yet exist while a release is being built.
+      // Treat this as a successful development check rather than showing a
+      // production-network error in the footer or Settings.
+      if (isDevelopmentBuild) {
+        return {
+          currentVersion,
+          latestVersion: null,
+          updateAvailable: false,
+          releaseUrl: APP_RELEASES_URL,
+        };
+      }
+
       const { check } = await import("@tauri-apps/plugin-updater");
       const update = await check();
 
@@ -353,9 +370,8 @@ export const api = {
         };
       }
 
-      const { getVersion } = await import("@tauri-apps/api/app");
       return {
-        currentVersion: await getVersion(),
+        currentVersion,
         latestVersion: null,
         updateAvailable: false,
         releaseUrl: APP_RELEASES_URL,

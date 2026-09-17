@@ -8,11 +8,11 @@
 
 ![SkillSync — pusty stan bez danych użytkownika](docs/screenshots/empty-state.png)
 
-*Pusty stan jest celowy: aplikacja nie pokazuje wymyślonych skills ani prywatnych ścieżek, gdy skan nie znajdzie prawidłowego manifestu.*
+_Pusty stan jest celowy: aplikacja nie pokazuje wymyślonych skills ani prywatnych ścieżek, gdy skan nie znajdzie prawidłowego manifestu._
 
 ![Ustawienia SkillSync — monitorowane ścieżki](docs/screenshots/settings-monitored-paths.png)
 
-*W ustawieniach dodasz własny katalog, włączysz lub wyłączysz monitoring i sprawdzisz wersję aplikacji. Zrzuty są zanonimizowane.*
+_W ustawieniach dodasz własny katalog, włączysz lub wyłączysz monitoring i sprawdzisz wersję aplikacji. Zrzuty są zanonimizowane._
 
 ## Co to jest SkillSync?
 
@@ -22,15 +22,15 @@ SkillSync rozpoznaje wyłącznie katalogi z `SKILL.md`, poprawnym `skill.json` a
 
 ## Najważniejsze możliwości
 
-| Obszar | Jak działa | Granica bezpieczeństwa |
-|---|---|---|
-| Wykrywanie skills | Skanuje standardowe i dodane ręcznie ścieżki | Wymaga prawdziwego manifestu; nie zgaduje po nazwie katalogu |
-| Aktualizacja Git | Pobiera wskazany tag/ref i aktualizuje manifest skilla | Zmodyfikowany śledzony plik Git blokuje operację |
-| Aktualizacja plikowa | Dla skilla ze źródłem upstream aktualizuje właściwy manifest | Zwykły `package.json` nigdy nie jest przepisywany |
-| Kopia i rollback | Przed zmianą tworzy archiwalną migawkę wszystkich lokalizacji | Błąd etapu powoduje próbę przywrócenia migawki |
-| Wiele lokalizacji | Grupuje te same skills znalezione w różnych katalogach | Wszystkie lokalizacje przechodzą walidację przed zapisem |
-| Wersja SkillSync | **Ustawienia → Ogólne** sprawdza dostępne wydanie | Brak wydania jest komunikowany, nie udawany |
-| MCP i pluginy | W ustawieniach wybierasz typ monitorowanej ścieżki: MCP albo Plugin | Każdy typ wymaga osobnego, jawnego manifestu |
+| Obszar               | Jak działa                                                          | Granica bezpieczeństwa                                       |
+| -------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------ |
+| Wykrywanie skills    | Skanuje standardowe i dodane ręcznie ścieżki                        | Wymaga prawdziwego manifestu; nie zgaduje po nazwie katalogu |
+| Aktualizacja Git     | Pobiera wskazany tag/ref i aktualizuje manifest skilla              | Zmodyfikowany śledzony plik Git blokuje operację             |
+| Aktualizacja plikowa | Dla skilla ze źródłem upstream aktualizuje właściwy manifest        | Zwykły `package.json` nigdy nie jest przepisywany            |
+| Kopia i rollback     | Przed zmianą tworzy archiwalną migawkę wszystkich lokalizacji       | Błąd etapu powoduje próbę przywrócenia migawki               |
+| Wiele lokalizacji    | Grupuje te same skills znalezione w różnych katalogach              | Wszystkie lokalizacje przechodzą walidację przed zapisem     |
+| Wersja SkillSync     | **Ustawienia → Ogólne** sprawdza dostępne wydanie                   | Brak wydania jest komunikowany, nie udawany                  |
+| MCP i pluginy        | W ustawieniach wybierasz typ monitorowanej ścieżki: MCP albo Plugin | Każdy typ wymaga osobnego, jawnego manifestu                 |
 
 ## Jak zaktualizować skills AI — szybka odpowiedź
 
@@ -46,10 +46,10 @@ Nie uruchamiaj aktualizacji „w ciemno” dla repozytorium z własnymi zmianami
 
 W **Ustawienia → Monitorowane ścieżki** dodaj katalog i wybierz jego typ: **MCP** albo **Plugin**. Karta wynikowa pokazuje typ zasobu, a dla rozpoznanego źródła GitHub można sprawdzić wydanie upstream. Aktualizacja repozytorium Git przechodzi ten sam preflight, kontrolę dirty state, snapshot, weryfikację integralności i rollback co aktualizacja skills.
 
-| Typ | Prawidłowy manifest | Przykład | Co nie zostanie wykryte |
-|---|---|---|---|
-| MCP | `mcp.json`, `.mcp.json` albo jawne `laravel/mcp` w `composer.json` | [`laravel/boost`](https://github.com/laravel/boost) | Zwykły projekt Laravel lub dowolny `composer.json` |
-| Plugin | `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `.cursor-plugin/plugin.json` albo `plugin.json` | [`obra/superpowers`](https://github.com/obra/superpowers) | Katalog tylko z README, skills lub package.json |
+| Typ    | Prawidłowy manifest                                                                                        | Przykład                                                  | Co nie zostanie wykryte                            |
+| ------ | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------- |
+| MCP    | `mcp.json`, `.mcp.json` albo jawne `laravel/mcp` w `composer.json`                                         | [`laravel/boost`](https://github.com/laravel/boost)       | Zwykły projekt Laravel lub dowolny `composer.json` |
+| Plugin | `.claude-plugin/plugin.json`, `.codex-plugin/plugin.json`, `.cursor-plugin/plugin.json` albo `plugin.json` | [`obra/superpowers`](https://github.com/obra/superpowers) | Katalog tylko z README, skills lub package.json    |
 
 Superpowers jest rozpoznawany po `.claude-plugin/plugin.json`; jego wewnętrzne skills nie są błędnie dublowane jako pluginy. Laravel Boost jest rozpoznawany tylko wtedy, gdy manifest jawnie deklaruje `laravel/mcp`. To ogranicza ryzyko objęcia aktualizacją przypadkowej aplikacji PHP.
 
@@ -65,14 +65,14 @@ Dla pozostałych instalacji pakietowych narzędzie może bezpiecznie monitorowa�
 
 Przy uruchomieniu aplikacja automatycznie sprawdza podpisany manifest nowego wydania SkillSync, jeśli w **Ustawienia → Ogólne** włączono sprawdzanie aktualizacji. Stan jest zawsze widoczny w przyklejonym footerze: bieżąca lub dostępna wersja, ręczne **Sprawdź teraz** oraz **Pobierz i zainstaluj**. Aktualizator pobiera właściwy pakiet macOS lub Windows, weryfikuje podpis zapisanym w aplikacji kluczem publicznym, instaluje aktualizację i uruchamia SkillSync ponownie, gdy jest to wymagane. Lista zasobów ma dolny odstęp, więc footer nie zasłania ostatnich kart.
 
-| Etap | Kontrola | Wynik błędu |
-|---|---|---|
-| 1. Walidacja | Katalog istnieje i ma obsługiwany manifest | Operacja kończy się bez tworzenia zapisu |
-| 2. Sprawdzenie Git | Worktree nie zawiera śledzonych modyfikacji | Aktualizacja jest zablokowana z jasnym komunikatem |
-| 3. Snapshot | Tworzona jest kopia przed zmianą | Brak snapshotu nie jest traktowany jako udana aktualizacja |
-| 4. Pobranie wersji | Git checkout albo pobranie treści upstream | Błąd przechodzi do rollbacku |
-| 5. Synchronizacja | Zmieniany jest `SKILL.md`, `skill.json` albo jawny package manifest | Niezwiązany plik projektu pozostaje nietknięty |
-| 6. Integralność | Sprawdzany jest format `skill.json` i obecność manifestu | Niespójny wynik jest przywracany z backupu |
+| Etap               | Kontrola                                                            | Wynik błędu                                                |
+| ------------------ | ------------------------------------------------------------------- | ---------------------------------------------------------- |
+| 1. Walidacja       | Katalog istnieje i ma obsługiwany manifest                          | Operacja kończy się bez tworzenia zapisu                   |
+| 2. Sprawdzenie Git | Worktree nie zawiera śledzonych modyfikacji                         | Aktualizacja jest zablokowana z jasnym komunikatem         |
+| 3. Snapshot        | Tworzona jest kopia przed zmianą                                    | Brak snapshotu nie jest traktowany jako udana aktualizacja |
+| 4. Pobranie wersji | Git checkout albo pobranie treści upstream                          | Błąd przechodzi do rollbacku                               |
+| 5. Synchronizacja  | Zmieniany jest `SKILL.md`, `skill.json` albo jawny package manifest | Niezwiązany plik projektu pozostaje nietknięty             |
+| 6. Integralność    | Sprawdzany jest format `skill.json` i obecność manifestu            | Niespójny wynik jest przywracany z backupu                 |
 
 ### Dlaczego problem z `docs`, `gallery` i `packages` nie powinien wrócić?
 
@@ -80,12 +80,12 @@ Sama lokalizacja pod `~/.agents/skills` nie oznacza, że każdy wewnętrzny kata
 
 ## Porównanie sposobów aktualizacji
 
-| Sposób | Kiedy ma sens | Ryzyko | Co daje SkillSync |
-|---|---|---|---|
-| Ręczny `git pull` | Jeden znany skill Git | Łatwo pominąć tag, status lub backup | Podgląd wersji i transakcja z rollbackiem |
-| Ręczna podmiana plików | Skill bez Git | Ryzyko nadpisania i braku historii | Snapshot oraz walidacja manifestu |
+| Sposób                       | Kiedy ma sens                 | Ryzyko                                   | Co daje SkillSync                                    |
+| ---------------------------- | ----------------------------- | ---------------------------------------- | ---------------------------------------------------- |
+| Ręczny `git pull`            | Jeden znany skill Git         | Łatwo pominąć tag, status lub backup     | Podgląd wersji i transakcja z rollbackiem            |
+| Ręczna podmiana plików       | Skill bez Git                 | Ryzyko nadpisania i braku historii       | Snapshot oraz walidacja manifestu                    |
 | Skrypt „aktualizuj wszystko” | Jednolity, kontrolowany fleet | Często nie rozróżnia projektów od skills | Detekcja oparta na manifeście i widoczne ostrzeżenia |
-| SkillSync | Kilka agentów lub ścieżek | Nadal wymaga przeglądu zmian major | Jeden interfejs, kopie, rollback i kontrola Git |
+| SkillSync                    | Kilka agentów lub ścieżek     | Nadal wymaga przeglądu zmian major       | Jeden interfejs, kopie, rollback i kontrola Git      |
 
 ## Instalacja oraz instalatory macOS i Windows
 
@@ -107,6 +107,10 @@ npm run tauri dev
 
 # Buduje pakiet dla bieżącej platformy
 npm run build:release
+
+# Na macOS maintainera polecenie odczytuje klucz aktualizatora z Pęku kluczy
+# i automatycznie tworzy podpis SkillSync.app.tar.gz.sig.
+npm run tauri build
 ```
 
 Skrypt lokalny tworzy artefakty w `dist-release/`. Workflow release uruchamia osobne joby macOS i Windows, ponieważ natywne bundlery powinny działać na właściwym systemie lub zgodnym runnerze. Dzięki temu tag release może dostarczyć instalatory obu platform, a lokalny build nie udaje builda dla systemu, którego nie kompilował.
@@ -139,66 +143,87 @@ Testy obejmują `SKILL.md`, `skill.json`, jawne metadane `skill`/`ai-skill`, odr
 ## FAQ — aktualizacja skills, Claude Code, Codex i Gemini
 
 ### 1. Jak zaktualizować skills w Claude Code?
+
 Otwórz SkillSync, wybierz skill z aktualizacją, sprawdź changelog i kliknij **Aktualizuj**. Dla `~/.claude/skills` aplikacja wymaga prawidłowego manifestu oraz czystego worktree, jeśli skill jest repozytorium Git.
 
 ### 2. Jak zaktualizować skills w Claude Code automatycznie?
+
 Włącz cykliczne sprawdzanie w **Ustawienia → Aktualizacje**. Automatyczne wykrycie nowej wersji nie zastępuje przeglądu wydania major ani lokalnych zmian w repozytorium.
 
 ### 3. Jak zaktualizować skills w OpenAI Codex?
+
 Dodaj lub włącz `~/.codex/skills` w Monitorowanych ścieżkach, przeskanuj katalog i uruchom aktualizację właściwego skilla. Codexowy `SKILL.md` jest traktowany jako manifest.
 
 ### 4. Jak zaktualizować skills Gemini CLI lub Antigravity?
+
 Sprawdź włączone ścieżki Gemini/Antigravity w ustawieniach. SkillSync aktualizuje tylko znalezione skills z prawidłowym manifestem, nie dowolne katalogi runtime.
 
 ### 5. Czy SkillSync zaktualizuje zwykły projekt Node.js?
+
 Nie. `package.json` musi zawierać jawne aktywne metadane `skill` lub `ai-skill`; zwykły pakiet, dokumentacja albo galeria są pomijane.
 
 ### 6. Dlaczego `package.json` nie wystarcza do wykrycia skilla?
+
 W monorepozytoriach i repozytoriach narzędziowych taki plik występuje w wielu katalogach. Wykrywanie po samym pliku powoduje fałszywe aktualizacje i ryzyko nadpisania wersji aplikacji lub biblioteki.
 
 ### 7. Co oznacza błąd „dirty state”?
+
 Git znalazł niezacommitowaną zmianę w pliku śledzonym. Zacommituj albo świadomie odłóż zmianę po sprawdzeniu różnicy, a następnie ponów aktualizację.
 
 ### 8. Czy nieśledzone pliki blokują aktualizację skills?
+
 Nie powinny blokować jej tylko dlatego, że są nieśledzone. Git może jednak zatrzymać checkout, jeśli taki plik koliduje z plikiem pobieranym z wersji docelowej.
 
 ### 9. Czy aktualizacja nadpisze moje prompty?
+
 Aktualizacja nie rozpoczyna się przy zmodyfikowanych śledzonych plikach Git. Przed zmianą powstaje snapshot, z którego można wykonać rollback.
 
 ### 10. Gdzie znajdują się kopie zapasowe?
+
 Domyślnie w `~/.skillsync/backups/`. Szczegóły skilla pokazują dostępne migawki i ich daty.
 
 ### 11. Jak przywrócić starszą wersję skilla?
+
 Otwórz szczegóły skilla, przejdź do rollbacku i wybierz snapshot. Przywrócenie odtwarza archiwalny stan wskazanej lokalizacji.
 
 ### 12. Czy mogę dodać własny katalog skills?
+
 Tak. Dodaj ścieżkę w **Ustawienia → Monitorowane ścieżki**, wybierz zakres i zapisz ustawienia.
 
 ### 13. Czy jedna aktualizacja synchronizuje kilka lokalizacji?
+
 Tak, jeśli skaner rozpozna je jako tę samą pozycję. Każdy cel jest walidowany przed modyfikacją i otrzymuje snapshot.
 
 ### 14. Czy mogę instalować prerelease skills?
+
 Opcję prerelease kontroluje zakładka Aktualizacje. Wersje prerelease wymagają szczególnej ostrożności, ponieważ mogą zmieniać kontrakt skilla.
 
 ### 15. Czym różni się patch, minor i major?
+
 Patch zwykle naprawia błędy, minor dodaje kompatybilne funkcje, a major może zawierać zmiany łamiące. Wersję major warto przeczytać przed aktualizacją.
 
 ### 16. Czy SkillSync działa bez internetu?
+
 Przegląd lokalnych skills i wcześniej wykonane backupy są lokalne. Sprawdzenie upstreamu lub pobranie aktualizacji wymaga dostępu do odpowiedniego zdalnego źródła.
 
 ### 17. Dlaczego skill nie pojawia się na liście?
+
 Sprawdź, czy ścieżka jest włączona oraz czy katalog zawiera `SKILL.md`, poprawny `skill.json` albo jawny manifest package skilla. Zwykły README nie jest manifestem.
 
 ### 18. Dlaczego aktualizacja została odrzucona przed backupem?
+
 To celowe zabezpieczenie. Katalog bez prawidłowego manifestu nie jest bezpiecznym celem transakcji, więc aplikacja nie wykonuje na nim żadnego zapisu.
 
 ### 19. Gdzie sprawdzić wersję SkillSync?
+
 Wejdź w **Ustawienia → Ogólne** i użyj przycisku **Sprawdź aktualizacje**. Wynik wskazuje bieżącą wersję oraz link do release, gdy release istnieje.
 
 ### 20. Czy SkillSync wysyła moje prompty do chmury?
+
 Skanowanie, walidacja i backup działają lokalnie. Połączenie sieciowe jest potrzebne tylko do sprawdzania lub pobierania danych z upstreamu wybranego skilla.
 
 ### 21. Jak zgłosić błąd aktualizacji skills?
+
 Zachowaj pełny komunikat, wersję aplikacji, system operacyjny oraz informację, czy skill używa Git, `SKILL.md` czy `skill.json`. Nie publikuj prywatnych promptów ani pełnych ścieżek, jeśli nie są potrzebne.
 
 ## Frazy i intencje wyszukiwania

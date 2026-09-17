@@ -90,14 +90,9 @@ export const Navbar: React.FC = () => {
               <Zap className="w-5 h-5 fill-primary" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
-                  {t.appName}
-                </span>
-                <span className="text-[10px] uppercase font-semibold tracking-wider px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">
-                  Local-first
-                </span>
-              </div>
+              <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
+                {t.appName}
+              </span>
               <p className="text-[11px] text-muted-foreground hidden sm:block">
                 {t.appSubtitle}
               </p>
