@@ -23,7 +23,7 @@
     "build:release": "python3 scripts/build_release.py --platform auto",
     "build:mac": "python3 scripts/build_release.py --platform macos",
     "build:win": "python3 scripts/build_release.py --platform windows",
-    "lint": "eslint src --ext .ts,.tsx",
+    "lint": "eslint src scripts --ext .ts,.tsx,.mjs",
     "test:unit": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
