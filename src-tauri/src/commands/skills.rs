@@ -7,6 +7,30 @@ use crate::services::git::GitService;
 use crate::services::github::GitHubService;
 use crate::services::managed_detector::ManagedItemDetector;
 use crate::services::orchestrator::UpdateOrchestrator;
+use std::sync::Arc;
+use tokio::sync::Semaphore;
+
+fn apply_github_release(
+    skill: &mut SkillMetadata,
+    release: &crate::services::github::GitHubReleaseInfo,
+) {
+    let is_newer = GitHubService::is_newer_version(&release.tag_name, &skill.current_version);
+    let compatibility =
+        GitHubService::get_semver_compatibility(&release.tag_name, &skill.current_version);
+
+    skill.latest_version = Some(release.tag_name.trim_start_matches(['v', 'V']).to_string());
+    skill.update_available = is_newer;
+    skill.status = if is_newer {
+        SkillStatus::UpdateAvailable
+    } else {
+        SkillStatus::UpToDate
+    };
+    if let Some(body) = &release.body {
+        skill.changelog = Some(body.clone());
+    }
+    skill.update_compatibility = Some(compatibility);
+    skill.last_checked = chrono::Utc::now();
+}
 
 #[tauri::command]
 pub async fn scan_skills(_force_refresh: bool) -> Result<Vec<SkillMetadata>, String> {
@@ -39,7 +63,12 @@ pub async fn scan_skills(_force_refresh: bool) -> Result<Vec<SkillMetadata>, Str
         }
     }
 
-    // Query GitHub concurrently for skills with remote_url (deduplicated by URL)
+    // Query GitHub once per remote. The former unbounded JoinSet created one
+    // connection per installed item, which made large installations hit
+    // GitHub throttling/timeouts. The detail view then appeared to work only
+    // because its later, single request was no longer competing with a burst.
+    // Keep the batch below the configured update concurrency and cap it to a
+    // conservative value suitable for GitHub's anonymous endpoints.
     let mut unique_urls: std::collections::HashSet<String> = std::collections::HashSet::new();
     for skill in &skills {
         if let Some(ref url) = skill.remote_url {
@@ -47,13 +76,17 @@ pub async fn scan_skills(_force_refresh: bool) -> Result<Vec<SkillMetadata>, Str
         }
     }
 
+    let max_concurrency = config.updates.concurrency_limit.clamp(1, 4);
+    let semaphore = Arc::new(Semaphore::new(max_concurrency));
     let mut set = tokio::task::JoinSet::new();
     for url in unique_urls {
+        let semaphore = Arc::clone(&semaphore);
         set.spawn(async move {
-            let release = GitHubService::check_latest_version(&url)
+            let _permit = semaphore
+                .acquire_owned()
                 .await
-                .ok()
-                .flatten();
+                .expect("GitHub scan semaphore must remain open");
+            let release = GitHubService::check_latest_version(&url).await;
             (url, release)
         });
     }
@@ -62,33 +95,35 @@ pub async fn scan_skills(_force_refresh: bool) -> Result<Vec<SkillMetadata>, Str
         String,
         crate::services::github::GitHubReleaseInfo,
     > = std::collections::HashMap::new();
+    let mut failed_checks: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
     while let Some(res) = set.join_next().await {
-        if let Ok((url, Some(release))) = res {
-            releases_map.insert(url, release);
+        if let Ok((url, result)) = res {
+            match result {
+                Ok(Some(release)) => {
+                    releases_map.insert(url, release);
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    failed_checks.insert(url, error);
+                }
+            }
         }
     }
 
     for skill in &mut skills {
         if let Some(ref url) = skill.remote_url {
             if let Some(release) = releases_map.get(url) {
-                let is_newer =
-                    GitHubService::is_newer_version(&release.tag_name, &skill.current_version);
-                let compat = GitHubService::get_semver_compatibility(
-                    &release.tag_name,
-                    &skill.current_version,
-                );
-                let clean_tag = release.tag_name.trim_start_matches(['v', 'V']).to_string();
-                skill.latest_version = Some(clean_tag);
-                skill.update_available = is_newer;
-                skill.status = if is_newer {
-                    SkillStatus::UpdateAvailable
-                } else {
-                    SkillStatus::UpToDate
-                };
-                if let Some(ref body) = release.body {
-                    skill.changelog = Some(body.clone());
-                }
-                skill.update_compatibility = Some(compat);
+                apply_github_release(skill, release);
+            } else if let Some(error) = failed_checks.get(url) {
+                // Do not silently turn an unavailable GitHub source into an
+                // "up to date" result. The card remains actionable and a
+                // retry can be made after connectivity recovers.
+                skill.status = SkillStatus::Error(format!(
+                    "Nie udało się sprawdzić aktualizacji GitHub: {}",
+                    error
+                ));
+                skill.update_available = false;
                 skill.last_checked = chrono::Utc::now();
             }
         }
@@ -106,23 +141,8 @@ pub async fn check_github_update(skill_id: String) -> Result<SkillMetadata, Stri
         .ok_or_else(|| format!("Skill with ID {} not found", skill_id))?;
 
     if let Some(ref remote_url) = skill.remote_url {
-        if let Ok(Some(release)) = GitHubService::check_latest_version(remote_url).await {
-            let is_newer =
-                GitHubService::is_newer_version(&release.tag_name, &skill.current_version);
-            let compat =
-                GitHubService::get_semver_compatibility(&release.tag_name, &skill.current_version);
-            skill.latest_version = Some(release.tag_name.trim_start_matches('v').to_string());
-            skill.update_available = is_newer;
-            skill.status = if is_newer {
-                SkillStatus::UpdateAvailable
-            } else {
-                SkillStatus::UpToDate
-            };
-            if let Some(body) = release.body {
-                skill.changelog = Some(body);
-            }
-            skill.update_compatibility = Some(compat);
-            skill.last_checked = chrono::Utc::now();
+        if let Some(release) = GitHubService::check_latest_version(remote_url).await? {
+            apply_github_release(&mut skill, &release);
         }
     }
 
@@ -344,6 +364,46 @@ mod tests {
         assert!(GitHubService::is_newer_version("v2.3.1", "2.0.0"));
         assert!(!GitHubService::is_newer_version("v2.3.1", "2.3.1"));
         assert!(!GitHubService::is_newer_version("v2.0.0", "2.3.1"));
+    }
+
+    #[test]
+    fn scan_and_detail_apply_the_same_github_release_result() {
+        let mut skill = SkillMetadata {
+            item_type: crate::models::skill::ManagedItemType::Skill,
+            id: "skill-release-fixture".to_string(),
+            name: "release-fixture".to_string(),
+            description: "Fixture".to_string(),
+            current_version: "1.0.0".to_string(),
+            latest_version: None,
+            author: "Tester".to_string(),
+            path: std::path::PathBuf::from("/tmp/release-fixture"),
+            is_git_repo: true,
+            remote_url: Some("https://github.com/example/release-fixture".to_string()),
+            branch_or_tag: Some("main".to_string()),
+            agent_scope: crate::models::skill::AgentScope::Global,
+            status: SkillStatus::UpToDate,
+            update_available: false,
+            changelog: None,
+            dependencies: vec![],
+            permissions: vec![],
+            last_checked: chrono::Utc::now(),
+            compatibility: None,
+            update_compatibility: None,
+            installed_locations: vec![],
+        };
+        let release = crate::services::github::GitHubReleaseInfo {
+            tag_name: "v1.2.0".to_string(),
+            name: Some("v1.2.0".to_string()),
+            body: Some("Release notes".to_string()),
+            published_at: None,
+        };
+
+        apply_github_release(&mut skill, &release);
+
+        assert_eq!(skill.latest_version.as_deref(), Some("1.2.0"));
+        assert!(skill.update_available);
+        assert_eq!(skill.status, SkillStatus::UpdateAvailable);
+        assert_eq!(skill.changelog.as_deref(), Some("Release notes"));
     }
 
     #[tokio::test]

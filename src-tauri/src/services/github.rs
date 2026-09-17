@@ -38,10 +38,35 @@ impl GitHubService {
     pub async fn check_latest_version(
         remote_url: &str,
     ) -> Result<Option<GitHubReleaseInfo>, String> {
+        let mut last_error = None;
+
+        // A scan is deliberately throttled by the caller, but an individual
+        // connection can still fail transiently (DNS, captive Wi-Fi, GitHub
+        // edge timeout). Retry the whole fallback chain once so bulk scanning
+        // and the detail action have identical, dependable semantics.
+        for attempt in 0..2 {
+            match Self::check_latest_version_once(remote_url).await {
+                Ok(release) => return Ok(release),
+                Err(error) => {
+                    last_error = Some(error);
+                    if attempt == 0 {
+                        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                    }
+                }
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| "Nieznany błąd połączenia z GitHub".to_string()))
+    }
+
+    async fn check_latest_version_once(
+        remote_url: &str,
+    ) -> Result<Option<GitHubReleaseInfo>, String> {
         let (owner, repo) = match Self::parse_github_owner_repo(remote_url) {
             Some(res) => res,
             None => return Ok(None),
         };
+        let mut had_usable_response = false;
 
         // 1. Zero-rate-limit method: Check web redirect on https://github.com/{owner}/{repo}/releases/latest
         let no_redirect_client = reqwest::Client::builder()
@@ -61,6 +86,9 @@ impl GitHubService {
             .await
         {
             let status = resp.status();
+            had_usable_response |= status.is_success()
+                || status.is_redirection()
+                || status == reqwest::StatusCode::NOT_FOUND;
             if status.is_redirection() {
                 if let Some(loc) = resp.headers().get("location").and_then(|l| l.to_str().ok()) {
                     if let Some(tag_part) = loc.split("/tag/").nth(1) {
@@ -91,6 +119,8 @@ impl GitHubService {
             .send()
             .await
         {
+            had_usable_response |=
+                resp.status().is_success() || resp.status() == reqwest::StatusCode::NOT_FOUND;
             if resp.status().is_success() {
                 if let Ok(text) = resp.text().await {
                     if let Some(tag) = Self::extract_tag_from_atom(&text) {
@@ -113,6 +143,8 @@ impl GitHubService {
             .send()
             .await
         {
+            had_usable_response |=
+                resp.status().is_success() || resp.status() == reqwest::StatusCode::NOT_FOUND;
             if resp.status().is_success() {
                 if let Ok(text) = resp.text().await {
                     if let Some(tag) = Self::extract_tag_from_atom(&text) {
@@ -142,6 +174,8 @@ impl GitHubService {
         }
 
         if let Ok(resp) = req.send().await {
+            had_usable_response |=
+                resp.status().is_success() || resp.status() == reqwest::StatusCode::NOT_FOUND;
             if resp.status().is_success() {
                 if let Ok(release) = resp.json::<serde_json::Value>().await {
                     let tag = release
@@ -174,7 +208,14 @@ impl GitHubService {
             }
         }
 
-        Ok(None)
+        if had_usable_response {
+            Ok(None)
+        } else {
+            Err(format!(
+                "GitHub nie odpowiedział poprawnie dla {}/{}; spróbuj ponownie.",
+                owner, repo
+            ))
+        }
     }
 
     pub fn extract_tag_from_atom(atom_text: &str) -> Option<String> {

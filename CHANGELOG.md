@@ -2,6 +2,14 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
 
+## [1.1.2] - 2026-09-17
+
+### Fixed
+
+- Make bulk discovery use a bounded GitHub verification queue instead of opening an unbounded burst of upstream requests.
+- Retry a transiently unavailable GitHub source once and give the card an actionable error state rather than incorrectly reporting that it is up to date.
+- Use one release-application path for scanning and the per-item **Check GitHub** action, so both surface the same current upstream version and update decision.
+
 ## [1.1.1] - 2026-09-17
 
 ### Fixed
@@ -58,3 +66,4 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 [1.0.0]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.0.0
 [1.1.0]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.1.0
 [1.1.1]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.1.1
+[1.1.2]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.1.2
