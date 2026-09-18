@@ -22,7 +22,14 @@ impl GitService {
     }
 
     pub fn is_git_repository(path: &Path) -> bool {
-        path.join(".git").exists() && Repository::open(path).is_ok()
+        Repository::discover(path).is_ok()
+    }
+
+    pub fn repository_root(path: &Path) -> Option<PathBuf> {
+        Repository::discover(path)
+            .ok()?
+            .workdir()
+            .map(|root| root.to_path_buf())
     }
 
     pub fn get_remote_url(path: &Path) -> Option<String> {
@@ -35,10 +42,7 @@ impl GitService {
     }
 
     pub fn get_current_ref_name(path: &Path) -> Option<String> {
-        if !path.join(".git").exists() {
-            return None;
-        }
-        let repo = Repository::open(path).ok()?;
+        let repo = Repository::discover(path).ok()?;
         let head = repo.head().ok()?;
         if head.is_branch() {
             head.shorthand().ok().map(str::to_owned)
@@ -49,10 +53,7 @@ impl GitService {
     }
 
     pub fn get_current_branch_name(path: &Path) -> Option<String> {
-        if !path.join(".git").exists() {
-            return None;
-        }
-        let repo = Repository::open(path).ok()?;
+        let repo = Repository::discover(path).ok()?;
         let head = repo.head().ok()?;
         head.is_branch()
             .then(|| head.shorthand().ok().map(str::to_owned))
@@ -60,7 +61,7 @@ impl GitService {
     }
 
     pub fn get_head_commit(path: &Path) -> Option<String> {
-        let repo = Repository::open(path).ok()?;
+        let repo = Repository::discover(path).ok()?;
         let commit = repo.head().ok()?.target().map(|oid| oid.to_string());
         commit
     }
@@ -111,7 +112,7 @@ impl GitService {
         branch: &str,
         allow_dirty_worktree: bool,
     ) -> Result<(), SkillSyncError> {
-        let repo = Repository::open(path)?;
+        let repo = Repository::discover(path)?;
         if !allow_dirty_worktree && !Self::is_worktree_clean(path)? {
             return Err(SkillSyncError::WorktreeDirty);
         }
@@ -161,7 +162,7 @@ impl GitService {
     }
 
     pub fn is_worktree_clean(path: &Path) -> Result<bool, SkillSyncError> {
-        let repo = Repository::open(path)?;
+        let repo = Repository::discover(path)?;
         let mut opts = StatusOptions::new();
         // Updates change tracked files. Untracked files are commonly created
         // by skill tooling and must not permanently block an update; a real
@@ -181,10 +182,7 @@ impl GitService {
     }
 
     pub fn get_head_tag(path: &Path) -> Option<String> {
-        if !path.join(".git").exists() {
-            return None;
-        }
-        let repo = Repository::open(path).ok()?;
+        let repo = Repository::discover(path).ok()?;
         let head = repo.head().ok()?;
         let head_commit = head.peel_to_commit().ok()?;
         let head_id = head_commit.id();
@@ -209,7 +207,7 @@ impl GitService {
         tag_name: &str,
         allow_dirty_worktree: bool,
     ) -> Result<(), SkillSyncError> {
-        let repo = Repository::open(path)?;
+        let repo = Repository::discover(path)?;
 
         // A forced checkout is destructive and is only reachable after an
         // explicit confirmation in the UI. The update transaction still
@@ -363,7 +361,8 @@ impl GitService {
             return Ok(());
         }
 
-        let parent = path.parent().unwrap_or(path);
+        let worktree_root = repo.workdir().unwrap_or(path);
+        let parent = worktree_root.parent().unwrap_or(worktree_root);
         let conflict_root = parent.join(format!(
             ".skillsync-conflicts-{}",
             chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
@@ -371,7 +370,7 @@ impl GitService {
         fs::create_dir_all(&conflict_root)?;
 
         for relative in &conflicts {
-            let source = path.join(relative);
+            let source = worktree_root.join(relative);
             if !fs::symlink_metadata(&source).is_ok() {
                 continue;
             }

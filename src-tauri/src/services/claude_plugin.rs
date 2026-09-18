@@ -1,5 +1,6 @@
 use crate::errors::SkillSyncError;
 use crate::services::managed_manifest::ManagedManifest;
+use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -70,7 +71,17 @@ impl ClaudePluginService {
             ))
         })?;
 
-        let output = Command::new("claude")
+        let cli = Self::resolve_cli().ok_or_else(|| {
+            SkillSyncError::UnsupportedUpdateMethod(
+                "Nie znaleziono Claude Code CLI. Ustaw SKILLSYNC_CLAUDE_CLI albo zainstaluj Claude Code (np. `~/.local/bin/claude`) i uruchom skanowanie ponownie."
+                    .to_string(),
+            )
+        })?;
+        let mut command = Command::new(&cli);
+        if let Some(path) = Self::runtime_path(&cli) {
+            command.env("PATH", path);
+        }
+        let output = command
             .args([
                 "plugin",
                 "update",
@@ -83,7 +94,8 @@ impl ClaudePluginService {
             .output()
             .map_err(|error| {
                 SkillSyncError::UnsupportedUpdateMethod(format!(
-                    "Nie można uruchomić Claude Code CLI: {error}. Zainstaluj Claude Code i spróbuj ponownie."
+                    "Nie można uruchomić Claude Code CLI ({}) : {error}. Ustaw SKILLSYNC_CLAUDE_CLI albo zainstaluj Claude Code i spróbuj ponownie.",
+                    cli.display()
                 ))
             })?;
         if !output.status.success() {
@@ -115,6 +127,72 @@ impl ClaudePluginService {
             )));
         }
         Ok(locations)
+    }
+
+    fn resolve_cli() -> Option<PathBuf> {
+        if let Some(configured) = std::env::var_os("SKILLSYNC_CLAUDE_CLI") {
+            let configured = PathBuf::from(configured);
+            if configured.is_file() {
+                return Some(configured);
+            }
+        }
+
+        let executable_names: &[&OsStr] = if cfg!(windows) {
+            &[
+                OsStr::new("claude.exe"),
+                OsStr::new("claude.cmd"),
+                OsStr::new("claude"),
+            ]
+        } else {
+            &[OsStr::new("claude")]
+        };
+        let path = std::env::var_os("PATH").unwrap_or_default();
+        for directory in std::env::split_paths(&path) {
+            for name in executable_names {
+                let candidate = directory.join(name);
+                if candidate.is_file() {
+                    return Some(candidate);
+                }
+            }
+        }
+
+        let home = dirs::home_dir()?;
+        let mut candidates = vec![
+            home.join(".local/bin/claude"),
+            home.join(".claude/local/claude"),
+            home.join(".npm-global/bin/claude"),
+            PathBuf::from("/opt/homebrew/bin/claude"),
+            PathBuf::from("/usr/local/bin/claude"),
+        ];
+        if let Ok(entries) = fs::read_dir(home.join(".nvm/versions/node")) {
+            let mut node_bins: Vec<PathBuf> = entries
+                .flatten()
+                .map(|entry| entry.path().join("bin"))
+                .filter(|path| path.is_dir())
+                .collect();
+            node_bins.sort_by(|left, right| right.cmp(left));
+            candidates.extend(node_bins.into_iter().map(|bin| bin.join("claude")));
+        }
+        candidates.into_iter().find(|candidate| candidate.is_file())
+    }
+
+    fn runtime_path(cli: &Path) -> Option<OsString> {
+        let mut directories: Vec<PathBuf> =
+            std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()).collect();
+        if let Some(parent) = cli.parent() {
+            if !directories.iter().any(|directory| directory == parent) {
+                directories.insert(0, parent.to_path_buf());
+            }
+        }
+        let home = dirs::home_dir()?;
+        if let Ok(entries) = fs::read_dir(home.join(".nvm/versions/node")) {
+            for bin in entries.flatten().map(|entry| entry.path().join("bin")) {
+                if bin.is_dir() && !directories.iter().any(|directory| directory == &bin) {
+                    directories.push(bin);
+                }
+            }
+        }
+        std::env::join_paths(directories).ok()
     }
 
     fn active_locations(plugins_root: &Path, identifier: &str, scope: &str) -> Vec<PathBuf> {

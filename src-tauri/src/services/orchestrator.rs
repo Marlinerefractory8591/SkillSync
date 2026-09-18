@@ -71,16 +71,20 @@ impl UpdateOrchestrator {
         // 1. Stage: Create Atomic Snapshots for all target paths
         let mut snapshots = Vec::new();
         for target in &canonical_targets {
+            let snapshot_target =
+                GitService::repository_root(target).unwrap_or_else(|| target.clone());
+            if snapshots.iter().any(|(path, _)| path == &snapshot_target) {
+                continue;
+            }
             let snapshot =
-                BackupService::create_snapshot(target, &skill.id, &skill.current_version).map_err(
-                    |error| {
+                BackupService::create_snapshot(&snapshot_target, &skill.id, &skill.current_version)
+                    .map_err(|error| {
                         SkillSyncError::FileSystem(format!(
                             "Nie udało się utworzyć migawki bezpieczeństwa dla {}: {error}",
                             target.display()
                         ))
-                    },
-                )?;
-            snapshots.push((target.clone(), snapshot));
+                    })?;
+            snapshots.push((snapshot_target, snapshot));
         }
 
         // 2. Stage: Perform updates across all locations

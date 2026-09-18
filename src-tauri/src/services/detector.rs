@@ -642,6 +642,11 @@ metadata:
             skills[0].remote_url.as_deref(),
             Some("https://github.com/ayghri/i-have-adhd")
         );
+        assert!(skills[0].is_git_repo);
+        assert_eq!(
+            GitService::repository_root(&skill_dir),
+            Some(fs::canonicalize(&root).unwrap())
+        );
 
         let _ = fs::remove_dir_all(root);
     }
