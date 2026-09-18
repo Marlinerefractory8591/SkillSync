@@ -199,12 +199,21 @@ jobs:
           echo "APPLE_API_KEY_PATH=$api_key_path" >> "$GITHUB_ENV"
 
       - name: Build Tauri Desktop Application
+        if: steps.apple_release_signing.outputs.enabled != 'true'
         run: npm run tauri build -- --verbose
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # These values are consumed by Tauri only for a tagged macOS release.
-          # Pull-request and Windows builds stay credential-free.
+
+      # Do not add Apple variables to the ordinary build above: an unset GitHub
+      # secret becomes an empty environment variable, which Tauri interprets as
+      # an invalid certificate that it tries to import.
+      - name: Build signed and notarized Tauri Desktop Application
+        if: steps.apple_release_signing.outputs.enabled == 'true'
+        run: npm run tauri build -- --verbose
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
