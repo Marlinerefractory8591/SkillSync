@@ -27,9 +27,9 @@ impl UpdateOrchestrator {
             .clone()
             .or_else(|| skill.detected_branch.clone());
         let target_tag = target_version.unwrap_or_else(|| {
-            skill
-                .latest_version
+            tracked_branch
                 .clone()
+                .or_else(|| skill.latest_version.clone())
                 .unwrap_or_else(|| skill.current_version.clone())
         });
 
@@ -293,7 +293,9 @@ impl UpdateOrchestrator {
                 ] {
                     let value = fs::read_to_string(path.join(relative))
                         .ok()
-                        .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok());
+                        .and_then(|content| {
+                            serde_json::from_str::<serde_json::Value>(&content).ok()
+                        });
                     if let Some(version) = value
                         .as_ref()
                         .and_then(|value| value.get("version"))
