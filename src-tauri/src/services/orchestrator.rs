@@ -22,16 +22,19 @@ impl UpdateOrchestrator {
         target_version: Option<String>,
         allow_dirty_worktree: bool,
     ) -> Result<SkillMetadata, SkillSyncError> {
-        let tracked_branch = skill
+        // Only a user-selected branch overrides the release policy. A branch
+        // merely detected from the current checkout is not a tracking choice:
+        // tagged repositories must continue to update by their newest tag.
+        let explicit_branch = skill
             .branch_override
             .clone()
-            .or_else(|| skill.detected_branch.clone());
-        let target_tag = target_version.unwrap_or_else(|| {
-            tracked_branch
-                .clone()
-                .or_else(|| skill.latest_version.clone())
-                .unwrap_or_else(|| skill.current_version.clone())
-        });
+            .filter(|branch| !branch.trim().is_empty());
+        let target_tag = target_version
+            .clone()
+            .or_else(|| skill.latest_version.clone())
+            .unwrap_or_else(|| skill.current_version.clone());
+        let mut tracked_branch = explicit_branch.clone();
+        let mut resolved_latest_version = skill.latest_version.clone();
 
         let mut locations: Vec<PathBuf> = skill.installed_locations.clone();
         if !locations.contains(&skill.path) {
@@ -57,9 +60,25 @@ impl UpdateOrchestrator {
         // detector should make this guard unreachable in normal use, but it is
         // the transaction-level safety net for stale UI state and custom IPC.
         for target in &canonical_targets {
-            ManagedManifest::validate(&skill.item_type, target).map_err(|reason| {
-                SkillSyncError::InvalidManifest(format!("{}: {reason}", target.display()))
-            })?;
+            let manifest =
+                ManagedManifest::validate(&skill.item_type, target).map_err(|reason| {
+                    SkillSyncError::InvalidManifest(format!("{}: {reason}", target.display()))
+                })?;
+            let safe_adapter = (skill.item_type == ManagedItemType::Mcp
+                && manifest == ManagedManifestKind::LaravelBoost
+                && McpService::is_laravel_boost_project(target))
+                || (skill.item_type == ManagedItemType::Plugin
+                    && manifest == ManagedManifestKind::Plugin
+                    && ClaudePluginService::installation_for_path(target).is_some());
+            if !GitService::is_git_repository(target)
+                && skill.item_type != ManagedItemType::Skill
+                && !safe_adapter
+            {
+                return Err(SkillSyncError::UnsupportedUpdateMethod(format!(
+                    "{} nie jest repozytorium Git. SkillSync monitoruje ten manifest, ale nie uruchomi automatycznie menedżera pakietów bez jawnego, bezpiecznego adaptera aktualizacji.",
+                    target.display()
+                )));
+            }
             if GitService::is_git_repository(target)
                 && !allow_dirty_worktree
                 && !GitService::is_worktree_clean(target)?
@@ -156,10 +175,44 @@ impl UpdateOrchestrator {
                 resolved_version = Some(version);
             // A. If Git repo, perform fetch and checkout
             } else if GitService::is_git_repository(target) {
-                let checkout_result = if let Some(branch) = &tracked_branch {
+                let checkout_result = if let Some(branch) = &explicit_branch {
+                    tracked_branch = Some(branch.clone());
+                    resolved_latest_version = Some(branch.clone());
                     GitService::fetch_and_checkout_branch(target, branch, allow_dirty_worktree)
+                } else if let Some(requested_tag) = target_version.as_deref() {
+                    tracked_branch = None;
+                    let version = requested_tag.trim_start_matches(['v', 'V']).to_string();
+                    resolved_latest_version = Some(version.clone());
+                    resolved_version = Some(version);
+                    GitService::fetch_and_checkout_tag(target, requested_tag, allow_dirty_worktree)
                 } else {
-                    GitService::fetch_and_checkout_tag(target, &target_tag, allow_dirty_worktree)
+                    match GitService::get_latest_remote_tag(target) {
+                        Ok(Some(remote_tag)) => {
+                            tracked_branch = None;
+                            let version = remote_tag.trim_start_matches(['v', 'V']).to_string();
+                            resolved_latest_version = Some(version.clone());
+                            resolved_version = Some(version);
+                            GitService::fetch_and_checkout_tag(
+                                target,
+                                &remote_tag,
+                                allow_dirty_worktree,
+                            )
+                        }
+                        Ok(None) => {
+                            let branch = GitService::resolve_fallback_branch(
+                                target,
+                                skill.detected_branch.as_deref(),
+                            )?;
+                            tracked_branch = Some(branch.clone());
+                            resolved_latest_version = Some(branch.clone());
+                            GitService::fetch_and_checkout_branch(
+                                target,
+                                &branch,
+                                allow_dirty_worktree,
+                            )
+                        }
+                        Err(error) => Err(error),
+                    }
                 };
                 if let Err(e) = checkout_result {
                     for (t, snap) in &snapshots {
@@ -189,7 +242,7 @@ impl UpdateOrchestrator {
             }
 
             // B. Update manifests on disk (SKILL.md, skill.json, package.json)
-            if skill.item_type == ManagedItemType::Skill && tracked_branch.is_none() {
+            if skill.item_type == ManagedItemType::Skill && !GitService::is_git_repository(target) {
                 if let Err(e) = Self::update_skill_md_version(target, &target_tag) {
                     for (t, snap) in &snapshots {
                         let _ = BackupService::restore_snapshot(t, &snap.backup_file_path);
@@ -246,10 +299,7 @@ impl UpdateOrchestrator {
                 target_tag.clone()
             }
         });
-        let latest_version = skill
-            .latest_version
-            .clone()
-            .unwrap_or_else(|| target_tag.clone());
+        let latest_version = resolved_latest_version.unwrap_or_else(|| target_tag.clone());
         let update_still_available = tracked_branch.is_none()
             && crate::services::github::GitHubService::is_newer_version(
                 &latest_version,

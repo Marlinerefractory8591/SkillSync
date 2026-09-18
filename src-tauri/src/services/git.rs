@@ -105,6 +105,112 @@ impl GitService {
         Ok(sha)
     }
 
+    /// Return the highest semantic-version tag advertised by `origin` without
+    /// modifying the working tree. The original tag spelling is retained so a
+    /// repository using `v1.2.3` is checked out by that exact ref.
+    pub fn get_latest_remote_tag(path: &Path) -> Result<Option<String>, SkillSyncError> {
+        let output = std::process::Command::new("git")
+            .args([
+                "-C",
+                path.to_str().unwrap_or("."),
+                "ls-remote",
+                "--tags",
+                "--refs",
+                "origin",
+            ])
+            .output()
+            .map_err(|error| SkillSyncError::FileSystem(error.to_string()))?;
+        if !output.status.success() {
+            return Err(SkillSyncError::Git {
+                code: output.status.code().unwrap_or(-1),
+                message: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+            });
+        }
+
+        Ok(Self::latest_semver_tag_from_ls_remote(
+            &String::from_utf8_lossy(&output.stdout),
+        ))
+    }
+
+    fn latest_semver_tag_from_ls_remote(output: &str) -> Option<String> {
+        output
+            .lines()
+            .filter_map(|line| line.split_whitespace().nth(1))
+            .filter_map(|reference| reference.strip_prefix("refs/tags/"))
+            .filter_map(|tag| {
+                semver::Version::parse(tag.trim_start_matches(['v', 'V']))
+                    .ok()
+                    .map(|version| (version, tag.to_string()))
+            })
+            .max_by(|(left, _), (right, _)| left.cmp(right))
+            .map(|(_, tag)| tag)
+    }
+
+    /// Branch tracking is only a fallback for repositories without SemVer
+    /// tags. Prefer main, then the remote default branch, then the branch that
+    /// was detected locally. Each candidate is proved to exist upstream.
+    pub fn resolve_fallback_branch(
+        path: &Path,
+        detected_branch: Option<&str>,
+    ) -> Result<String, SkillSyncError> {
+        let mut candidates = vec!["main".to_string()];
+        if let Some(default_branch) = Self::get_remote_default_branch(path)? {
+            candidates.push(default_branch);
+        }
+        if let Some(detected) = detected_branch.filter(|branch| Self::is_valid_branch_name(branch))
+        {
+            candidates.push(detected.to_string());
+        }
+        let mut unique_candidates = Vec::new();
+        for branch in candidates {
+            if !unique_candidates.contains(&branch) {
+                unique_candidates.push(branch);
+            }
+        }
+
+        let mut last_error = None;
+        for branch in unique_candidates {
+            match Self::get_remote_branch_commit(path, &branch) {
+                Ok(_) => return Ok(branch),
+                Err(error) => last_error = Some(error),
+            }
+        }
+
+        Err(last_error.unwrap_or_else(|| SkillSyncError::Git {
+            code: -3,
+            message: "Origin nie udostępnia gałęzi do śledzenia".to_string(),
+        }))
+    }
+
+    fn get_remote_default_branch(path: &Path) -> Result<Option<String>, SkillSyncError> {
+        let output = std::process::Command::new("git")
+            .args([
+                "-C",
+                path.to_str().unwrap_or("."),
+                "ls-remote",
+                "--symref",
+                "origin",
+                "HEAD",
+            ])
+            .output()
+            .map_err(|error| SkillSyncError::FileSystem(error.to_string()))?;
+        if !output.status.success() {
+            return Err(SkillSyncError::Git {
+                code: output.status.code().unwrap_or(-1),
+                message: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+            });
+        }
+
+        Ok(String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .find_map(|line| {
+                line.strip_prefix("ref: refs/heads/")
+                    .and_then(|value| value.split_whitespace().next())
+            })
+            .filter(|branch| Self::is_valid_branch_name(branch))
+            .map(str::to_string))
+    }
+
     pub fn fetch_and_checkout_branch(
         path: &Path,
         branch: &str,
@@ -550,6 +656,32 @@ mod tests {
         ));
         assert!(GitService::is_valid_branch_name("main"));
         assert!(GitService::is_valid_branch_name("feature/branch"));
+    }
+
+    #[test]
+    fn chooses_the_highest_semver_remote_tag_and_preserves_its_spelling() {
+        let refs = concat!(
+            "deadbeef\trefs/tags/v2.9.0\n",
+            "deadbeef\trefs/tags/v2.11.1\n",
+            "deadbeef\trefs/tags/nightly\n",
+            "deadbeef\trefs/tags/1.10.0\n",
+            "deadbeef\trefs/tags/v2.11.1-rc.1\n",
+        );
+
+        assert_eq!(
+            GitService::latest_semver_tag_from_ls_remote(refs),
+            Some("v2.11.1".to_string())
+        );
+    }
+
+    #[test]
+    fn ignores_non_semver_tags_when_deciding_whether_branch_tracking_is_needed() {
+        assert_eq!(
+            GitService::latest_semver_tag_from_ls_remote(
+                "deadbeef\trefs/tags/main\ndeadbeef\trefs/tags/nightly\n"
+            ),
+            None
+        );
     }
 
     #[test]

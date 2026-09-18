@@ -115,10 +115,23 @@ pub async fn update_single_skill(
     use tauri::Emitter;
 
     let all_skills = discover_skills();
-    let skill = all_skills
+    let mut skill = all_skills
         .into_iter()
         .find(|s| s.id == skill_id)
         .ok_or_else(|| format!("Skill with ID {} not found", skill_id))?;
+
+    // The details view may have been open while a new tag or commit appeared.
+    // Refresh the chosen tracking source immediately before the transaction so
+    // Update never falls back to the stale manifest version discovered at app
+    // startup.
+    if target_version.is_none() {
+        skill = crate::services::scan_queue::refresh_upstream(skill).await;
+        if let SkillStatus::Error(message) = &skill.status {
+            return Err(format!(
+                "Nie można bezpiecznie rozpocząć aktualizacji: {message}"
+            ));
+        }
+    }
 
     let _ = app.emit(
         "update-progress",
