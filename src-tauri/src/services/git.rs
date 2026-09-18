@@ -1,19 +1,35 @@
 use crate::errors::SkillSyncError;
-use git2::{build::CheckoutBuilder, Repository, Status, StatusOptions};
-use std::path::Path;
+use git2::{build::CheckoutBuilder, Commit, Repository, Status, StatusOptions};
+use std::fs;
+use std::path::{Path, PathBuf};
 
 pub struct GitService;
 
 impl GitService {
+    pub fn is_valid_branch_name(branch: &str) -> bool {
+        let branch = branch.trim();
+        !branch.is_empty()
+            && !branch.starts_with('-')
+            && !branch.ends_with('.')
+            && !branch.contains("..")
+            && !branch.contains("@{")
+            && !branch.chars().any(|character| {
+                character.is_whitespace()
+                    || character.is_control()
+                    || matches!(character, '~' | '^' | ':' | '?' | '*' | '[' | '\\')
+            })
+            && !branch.contains("://")
+    }
+
     pub fn is_git_repository(path: &Path) -> bool {
         path.join(".git").exists() && Repository::open(path).is_ok()
     }
 
     pub fn get_remote_url(path: &Path) -> Option<String> {
-        if !path.join(".git").exists() {
-            return None;
-        }
-        let repo = Repository::open(path).ok()?;
+        // `SKILL.md` files are often nested inside a repository (for example
+        // `repo/skills/name`). Discover the repository from the nested path so
+        // the UI can still expose its GitHub remote and update controls.
+        let repo = Repository::discover(path).ok()?;
         let remote = repo.find_remote("origin").ok()?;
         remote.url().ok().map(str::to_owned)
     }
@@ -123,6 +139,9 @@ impl GitService {
         let commit = repo
             .find_reference(&remote_ref)
             .and_then(|reference| reference.peel_to_commit())?;
+        if allow_dirty_worktree {
+            Self::preserve_checkout_conflicts(path, &repo, &commit)?;
+        }
         let mut checkout = CheckoutBuilder::new();
         if allow_dirty_worktree {
             checkout.force();
@@ -280,6 +299,10 @@ impl GitService {
             }
         };
 
+        if allow_dirty_worktree {
+            Self::preserve_checkout_conflicts(path, &repo, &commit)?;
+        }
+
         // Checkout target commit
         let mut checkout = CheckoutBuilder::new();
         if allow_dirty_worktree {
@@ -290,6 +313,86 @@ impl GitService {
         repo.checkout_tree(commit.as_object(), Some(&mut checkout))?;
         repo.set_head_detached(commit.id())?;
 
+        Ok(())
+    }
+
+    /// Preserve local files that Git cannot replace during a forced checkout.
+    ///
+    /// `git status` intentionally ignores untracked files for the normal
+    /// cleanliness check because skills commonly generate local files. Git
+    /// still refuses a checkout when one of those files occupies a path that
+    /// the target commit needs (most notably a local directory replacing a
+    /// tracked symlink, as used by gstack). Move only those collisions outside
+    /// the repository; the atomic snapshot created by the orchestrator remains
+    /// the rollback source for the complete pre-update tree.
+    fn preserve_checkout_conflicts(
+        path: &Path,
+        repo: &Repository,
+        commit: &Commit<'_>,
+    ) -> Result<(), SkillSyncError> {
+        let tree = commit.tree()?;
+        let mut options = StatusOptions::new();
+        options
+            .include_untracked(true)
+            .include_ignored(false)
+            .recurse_untracked_dirs(true);
+        let statuses = repo.statuses(Some(&mut options))?;
+
+        let mut conflicts: Vec<PathBuf> = statuses
+            .iter()
+            .filter_map(|entry| {
+                let status = entry.status();
+                if !(status.contains(Status::WT_NEW) || status.contains(Status::WT_TYPECHANGE)) {
+                    return None;
+                }
+                let relative = PathBuf::from(entry.path().ok()?);
+                tree.get_path(&relative).ok()?;
+                Some(relative)
+            })
+            .collect();
+        conflicts.sort_by_key(|path| path.components().count());
+        conflicts.dedup();
+        let all_conflicts = conflicts.clone();
+        conflicts.retain(|candidate| {
+            !all_conflicts
+                .iter()
+                .any(|other| other != candidate && candidate.starts_with(other))
+        });
+
+        if conflicts.is_empty() {
+            return Ok(());
+        }
+
+        let parent = path.parent().unwrap_or(path);
+        let conflict_root = parent.join(format!(
+            ".skillsync-conflicts-{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        fs::create_dir_all(&conflict_root)?;
+
+        for relative in &conflicts {
+            let source = path.join(relative);
+            if !fs::symlink_metadata(&source).is_ok() {
+                continue;
+            }
+            let destination = conflict_root.join(relative);
+            if let Some(destination_parent) = destination.parent() {
+                fs::create_dir_all(destination_parent)?;
+            }
+            fs::rename(&source, &destination).map_err(|error| {
+                SkillSyncError::FileSystem(format!(
+                    "Nie można zachować lokalnego konfliktu {} przed checkoutem: {}",
+                    source.display(),
+                    error
+                ))
+            })?;
+        }
+
+        let manifest = conflict_root.join("README.txt");
+        fs::write(
+            manifest,
+            "SkillSync preserved local files before a forced Git update. Restore them manually if needed; the atomic SkillSync snapshot also contains the complete pre-update tree.\n",
+        )?;
         Ok(())
     }
 
@@ -441,6 +544,15 @@ mod tests {
         assert!(GitService::is_worktree_clean(&path).unwrap());
 
         let _ = fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn rejects_a_repository_url_as_a_branch_name() {
+        assert!(!GitService::is_valid_branch_name(
+            "https://github.com/ayghri/i-have-adhd"
+        ));
+        assert!(GitService::is_valid_branch_name("main"));
+        assert!(GitService::is_valid_branch_name("feature/branch"));
     }
 
     #[test]

@@ -32,7 +32,7 @@ export const SkillList: React.FC = () => {
 
       if (
         branchFilter === "missing" &&
-        (!skill.isGitRepo ||
+        (!skill.remoteUrl ||
           (skill.branchOverride ?? skill.detectedBranch ?? skill.branchOrTag))
       ) {
         return false;

@@ -320,16 +320,11 @@ impl SkillDetector {
     }
 
     fn resolve_remote_url(dir: &Path, fm: &FrontmatterMeta) -> Option<String> {
-        // 1. Direct git repository
+        // 1. Git repository (including skills nested below its root). Git2's
+        // discovery walks all ancestors, which covers layouts such as
+        // `i-have-adhd/skills/i-have-adhd/SKILL.md`.
         if let Some(url) = GitService::get_remote_url(dir) {
             return Some(url);
-        }
-
-        // 2. Parent git repository
-        if let Some(parent) = dir.parent() {
-            if let Some(url) = GitService::get_remote_url(parent) {
-                return Some(url);
-            }
         }
 
         // 3. Frontmatter explicit repository
@@ -623,6 +618,30 @@ metadata:
         assert_eq!(skills.len(), 1);
         assert_eq!(skills[0].name, "markdown-skill");
         assert_eq!(skills[0].current_version, "1.2.3");
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn resolves_remote_for_a_skill_nested_inside_its_git_repository() {
+        let root = fixture_root("nested-remote");
+        let skills_root = root.join("skills");
+        let skill_dir = skills_root.join("i-have-adhd");
+        fs::create_dir_all(&skill_dir).unwrap();
+        let repo = git2::Repository::init(&root).unwrap();
+        repo.remote("origin", "https://github.com/ayghri/i-have-adhd")
+            .unwrap();
+        write_file(
+            &skill_dir.join("SKILL.md"),
+            "---\nname: i-have-adhd\n---\n# Skill\n",
+        );
+
+        let skills = SkillDetector::scan_directories(&[skills_root]);
+        assert_eq!(skills.len(), 1);
+        assert_eq!(
+            skills[0].remote_url.as_deref(),
+            Some("https://github.com/ayghri/i-have-adhd")
+        );
 
         let _ = fs::remove_dir_all(root);
     }

@@ -65,7 +65,7 @@ fn discover_skills() -> Vec<SkillMetadata> {
     for skill in &mut skills {
         if let Some(branch) = config.updates.branch_overrides.get(&skill.id) {
             let branch = branch.trim();
-            if !branch.is_empty() {
+            if GitService::is_valid_branch_name(branch) {
                 skill.branch_override = Some(branch.to_string());
                 skill.branch_or_tag = Some(branch.to_string());
             }
@@ -275,6 +275,11 @@ pub fn set_branch_override(skill_id: String, branch: Option<String>) -> Result<(
     let mut config = ConfigService::load_config();
     match branch.map(|value| value.trim().to_string()) {
         Some(value) if !value.is_empty() => {
+            if !GitService::is_valid_branch_name(&value) {
+                return Err(
+                    "Nieprawidłowa nazwa gałęzi. Wpisz nazwę, np. main lub feature/branch, a nie adres repozytorium GitHub.".to_string(),
+                );
+            }
             config.updates.branch_overrides.insert(skill_id, value);
         }
         _ => {

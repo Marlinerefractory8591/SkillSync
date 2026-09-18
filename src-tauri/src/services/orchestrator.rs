@@ -3,6 +3,7 @@ use crate::models::skill::ManagedItemType;
 use crate::models::skill::{SkillMetadata, SkillStatus};
 use crate::services::backup::BackupService;
 use crate::services::claude_plugin::ClaudePluginService;
+use crate::services::detector::SkillDetector;
 use crate::services::git::GitService;
 use crate::services::github::GitHubService;
 use crate::services::managed_manifest::{ManagedManifest, ManagedManifestKind};
@@ -210,6 +211,26 @@ impl UpdateOrchestrator {
                     )));
                 }
             }
+
+            // A branch update is commit-based, so the release tag cannot tell
+            // us the new package version. Re-read the manifest after checkout
+            // instead of leaving the pre-update version in the UI.
+            if tracked_branch.is_some() {
+                if let Some(version) = Self::version_from_manifest(&skill.item_type, target) {
+                    if let Some(previous) = &resolved_version {
+                        if previous != &version {
+                            for (t, snap) in &snapshots {
+                                let _ = BackupService::restore_snapshot(t, &snap.backup_file_path);
+                            }
+                            return Err(SkillSyncError::IntegrityCheckFailed(
+                                "różne lokalizacje mają różne wersje po aktualizacji".to_string(),
+                            ));
+                        }
+                    } else {
+                        resolved_version = Some(version);
+                    }
+                }
+            }
         }
 
         // Return updated metadata
@@ -254,6 +275,37 @@ impl UpdateOrchestrator {
         }
 
         Ok(updated)
+    }
+
+    fn version_from_manifest(item_type: &ManagedItemType, path: &Path) -> Option<String> {
+        match item_type {
+            ManagedItemType::Skill => SkillDetector::scan_directories(&[path.to_path_buf()])
+                .into_iter()
+                .find(|skill| skill.path == path)
+                .map(|skill| skill.current_version)
+                .filter(|version| version != crate::services::detector::UNKNOWN_SKILL_VERSION),
+            ManagedItemType::Plugin => {
+                for relative in [
+                    ".claude-plugin/plugin.json",
+                    ".codex-plugin/plugin.json",
+                    ".cursor-plugin/plugin.json",
+                    "plugin.json",
+                ] {
+                    let value = fs::read_to_string(path.join(relative))
+                        .ok()
+                        .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok());
+                    if let Some(version) = value
+                        .as_ref()
+                        .and_then(|value| value.get("version"))
+                        .and_then(serde_json::Value::as_str)
+                    {
+                        return Some(version.trim_start_matches(['v', 'V']).to_string());
+                    }
+                }
+                None
+            }
+            ManagedItemType::Mcp => McpService::laravel_boost_version(path),
+        }
     }
 
     pub fn update_skill_md_version(dir: &Path, new_version: &str) -> Result<(), SkillSyncError> {
@@ -492,6 +544,23 @@ mod tests {
             serde_json::from_str(&fs::read_to_string(dir.join("package.json")).unwrap()).unwrap();
         assert_eq!(package["version"], "2.0.0");
 
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn reads_the_version_from_a_skill_manifest_after_a_branch_checkout() {
+        let dir = fixture_dir("branch-version");
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("SKILL.md"),
+            "---\nname: wcag-accessibility-skills\nmetadata:\n  version: \"1.1.0\"\n---\n# Skill\n",
+        )
+        .unwrap();
+
+        assert_eq!(
+            UpdateOrchestrator::version_from_manifest(&ManagedItemType::Skill, &dir),
+            Some("1.1.0".to_string())
+        );
         let _ = fs::remove_dir_all(dir);
     }
 

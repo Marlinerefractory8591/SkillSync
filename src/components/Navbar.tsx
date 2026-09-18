@@ -45,7 +45,7 @@ export const Navbar: React.FC = () => {
   const outdatedCount = skills.filter((s) => s.updateAvailable).length;
   const missingBranchCount = skills.filter(
     (skill) =>
-      skill.isGitRepo &&
+      Boolean(skill.remoteUrl) &&
       !(skill.branchOverride ?? skill.detectedBranch ?? skill.branchOrTag),
   ).length;
 
