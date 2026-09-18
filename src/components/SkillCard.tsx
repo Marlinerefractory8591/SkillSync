@@ -56,6 +56,14 @@ export const SkillCard: React.FC<SkillCardProps> = ({ skill }) => {
         </span>
       );
     }
+    if (skill.status === "checking") {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-sky-500/15 text-sky-400 border border-sky-500/30">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          {t.checking}
+        </span>
+      );
+    }
     if (skill.updateAvailable) {
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">

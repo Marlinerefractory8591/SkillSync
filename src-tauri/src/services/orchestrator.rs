@@ -21,6 +21,10 @@ impl UpdateOrchestrator {
         target_version: Option<String>,
         allow_dirty_worktree: bool,
     ) -> Result<SkillMetadata, SkillSyncError> {
+        let tracked_branch = skill
+            .branch_override
+            .clone()
+            .or_else(|| skill.detected_branch.clone());
         let target_tag = target_version.unwrap_or_else(|| {
             skill
                 .latest_version
@@ -147,9 +151,12 @@ impl UpdateOrchestrator {
                 resolved_version = Some(version);
             // A. If Git repo, perform fetch and checkout
             } else if GitService::is_git_repository(target) {
-                if let Err(e) =
+                let checkout_result = if let Some(branch) = &tracked_branch {
+                    GitService::fetch_and_checkout_branch(target, branch, allow_dirty_worktree)
+                } else {
                     GitService::fetch_and_checkout_tag(target, &target_tag, allow_dirty_worktree)
-                {
+                };
+                if let Err(e) = checkout_result {
                     for (t, snap) in &snapshots {
                         let _ = BackupService::restore_snapshot(t, &snap.backup_file_path);
                     }
@@ -177,7 +184,7 @@ impl UpdateOrchestrator {
             }
 
             // B. Update manifests on disk (SKILL.md, skill.json, package.json)
-            if skill.item_type == ManagedItemType::Skill {
+            if skill.item_type == ManagedItemType::Skill && tracked_branch.is_none() {
                 if let Err(e) = Self::update_skill_md_version(target, &target_tag) {
                     for (t, snap) in &snapshots {
                         let _ = BackupService::restore_snapshot(t, &snap.backup_file_path);
@@ -207,15 +214,22 @@ impl UpdateOrchestrator {
 
         // Return updated metadata
         let mut updated = skill.clone();
-        let current_version = resolved_version.unwrap_or_else(|| target_tag.clone());
+        let current_version = resolved_version.unwrap_or_else(|| {
+            if tracked_branch.is_some() {
+                skill.current_version.clone()
+            } else {
+                target_tag.clone()
+            }
+        });
         let latest_version = skill
             .latest_version
             .clone()
             .unwrap_or_else(|| target_tag.clone());
-        let update_still_available = crate::services::github::GitHubService::is_newer_version(
-            &latest_version,
-            &current_version,
-        );
+        let update_still_available = tracked_branch.is_none()
+            && crate::services::github::GitHubService::is_newer_version(
+                &latest_version,
+                &current_version,
+            );
         updated.current_version = current_version.clone();
         updated.latest_version = Some(latest_version.clone());
         updated.update_available = update_still_available;
@@ -231,6 +245,9 @@ impl UpdateOrchestrator {
             )
         });
         updated.last_checked = chrono::Utc::now();
+        if let Some(branch) = tracked_branch {
+            updated.branch_or_tag = Some(branch);
+        }
         if let Some(locations) = resolved_locations {
             updated.path = locations[0].clone();
             updated.installed_locations = locations;
@@ -410,6 +427,8 @@ mod tests {
             is_git_repo: false,
             remote_url: None,
             branch_or_tag: None,
+            detected_branch: None,
+            branch_override: None,
             agent_scope: AgentScope::Global,
             status: SkillStatus::UpdateAvailable,
             update_available: true,

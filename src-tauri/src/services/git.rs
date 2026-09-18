@@ -32,6 +32,115 @@ impl GitService {
         }
     }
 
+    pub fn get_current_branch_name(path: &Path) -> Option<String> {
+        if !path.join(".git").exists() {
+            return None;
+        }
+        let repo = Repository::open(path).ok()?;
+        let head = repo.head().ok()?;
+        head.is_branch()
+            .then(|| head.shorthand().ok().map(str::to_owned))
+            .flatten()
+    }
+
+    pub fn get_head_commit(path: &Path) -> Option<String> {
+        let repo = Repository::open(path).ok()?;
+        let commit = repo.head().ok()?.target().map(|oid| oid.to_string());
+        commit
+    }
+
+    /// Resolves the current SHA of a remote branch without changing the local
+    /// checkout. `git ls-remote` honours the user's configured credentials,
+    /// which is essential for private agent repositories.
+    pub fn get_remote_branch_commit(path: &Path, branch: &str) -> Result<String, SkillSyncError> {
+        if branch.trim().is_empty() {
+            return Err(SkillSyncError::Git {
+                code: -4,
+                message: "Nazwa gałęzi nie może być pusta".to_string(),
+            });
+        }
+        let output = std::process::Command::new("git")
+            .args([
+                "-C",
+                path.to_str().unwrap_or("."),
+                "ls-remote",
+                "--heads",
+                "origin",
+                branch.trim(),
+            ])
+            .output()
+            .map_err(|error| SkillSyncError::FileSystem(error.to_string()))?;
+        if !output.status.success() {
+            return Err(SkillSyncError::Git {
+                code: output.status.code().unwrap_or(-1),
+                message: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+            });
+        }
+        let sha = String::from_utf8_lossy(&output.stdout)
+            .split_whitespace()
+            .next()
+            .unwrap_or_default()
+            .to_string();
+        if sha.is_empty() {
+            return Err(SkillSyncError::Git {
+                code: -3,
+                message: format!("Gałąź '{}' nie istnieje w origin", branch.trim()),
+            });
+        }
+        Ok(sha)
+    }
+
+    pub fn fetch_and_checkout_branch(
+        path: &Path,
+        branch: &str,
+        allow_dirty_worktree: bool,
+    ) -> Result<(), SkillSyncError> {
+        let repo = Repository::open(path)?;
+        if !allow_dirty_worktree && !Self::is_worktree_clean(path)? {
+            return Err(SkillSyncError::WorktreeDirty);
+        }
+
+        let branch = branch.trim();
+        let refspec = format!("refs/heads/{branch}:refs/remotes/origin/{branch}");
+        let output = std::process::Command::new("git")
+            .args([
+                "-C",
+                path.to_str().unwrap_or("."),
+                "fetch",
+                "origin",
+                &refspec,
+            ])
+            .output()
+            .map_err(|error| SkillSyncError::FileSystem(error.to_string()))?;
+        if !output.status.success() {
+            return Err(SkillSyncError::Git {
+                code: output.status.code().unwrap_or(-1),
+                message: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+            });
+        }
+
+        let remote_ref = format!("refs/remotes/origin/{branch}");
+        let commit = repo
+            .find_reference(&remote_ref)
+            .and_then(|reference| reference.peel_to_commit())?;
+        let mut checkout = CheckoutBuilder::new();
+        if allow_dirty_worktree {
+            checkout.force();
+        } else {
+            checkout.safe();
+        }
+        repo.checkout_tree(commit.as_object(), Some(&mut checkout))?;
+
+        let local_ref = format!("refs/heads/{branch}");
+        if repo.find_reference(&local_ref).is_ok() {
+            repo.reference(&local_ref, commit.id(), true, "SkillSync branch update")?;
+        } else {
+            repo.branch(branch, &commit, false)?;
+        }
+        repo.set_head(&local_ref)?;
+        Ok(())
+    }
+
     pub fn is_worktree_clean(path: &Path) -> Result<bool, SkillSyncError> {
         let repo = Repository::open(path)?;
         let mut opts = StatusOptions::new();
@@ -350,6 +459,26 @@ mod tests {
         fs::remove_file(path.join("SKILL.md")).unwrap();
 
         assert!(GitService::is_worktree_clean(&path).unwrap());
+
+        let _ = fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn detects_the_checked_out_branch_and_head_commit() {
+        let path = committed_repo("branch-detection");
+        let expected_branch = Repository::open(&path)
+            .unwrap()
+            .head()
+            .unwrap()
+            .shorthand()
+            .unwrap()
+            .to_string();
+
+        assert_eq!(
+            GitService::get_current_branch_name(&path),
+            Some(expected_branch)
+        );
+        assert!(GitService::get_head_commit(&path).is_some());
 
         let _ = fs::remove_dir_all(path);
     }

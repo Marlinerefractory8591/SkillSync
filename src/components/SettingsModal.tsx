@@ -636,6 +636,32 @@ export const SettingsModal: React.FC = () => {
                 <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-card/60">
                   <div>
                     <p className="font-semibold text-foreground">
+                      Pokaż ikonę SkillSync na pasku systemowym
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Przypina ikonę obok zegara. Kliknięcie otwiera okno, a
+                      menu daje dostęp do zamknięcia aplikacji.
+                    </p>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={localConfig.general.showTrayIcon}
+                    onChange={(e) =>
+                      setLocalConfig({
+                        ...localConfig,
+                        general: {
+                          ...localConfig.general,
+                          showTrayIcon: e.target.checked,
+                        },
+                      })
+                    }
+                    className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-card/60">
+                  <div>
+                    <p className="font-semibold text-foreground">
                       {t.minimizeToTray}
                     </p>
                     <p className="text-[11px] text-muted-foreground">

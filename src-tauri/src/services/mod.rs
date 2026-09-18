@@ -9,3 +9,4 @@ pub mod managed_manifest;
 pub mod manifest;
 pub mod mcp;
 pub mod orchestrator;
+pub mod scan_queue;

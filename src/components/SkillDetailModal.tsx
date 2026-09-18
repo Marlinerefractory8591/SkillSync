@@ -42,6 +42,7 @@ export const SkillDetailModal: React.FC = () => {
     rollbackSkill,
     checkGitHubUpdate,
     checkoutCustomVersion,
+    setBranchOverride,
   } = useSkillStore();
 
   const [copied, setCopied] = useState(false);
@@ -51,6 +52,7 @@ export const SkillDetailModal: React.FC = () => {
   const [isCheckingGitHub, setIsCheckingGitHub] = useState(false);
   const [customTagInput, setCustomTagInput] = useState("");
   const [isInstallingCustom, setIsInstallingCustom] = useState(false);
+  const [branchInput, setBranchInput] = useState("");
 
   useEffect(() => {
     if (selectedSkill) {
@@ -61,6 +63,9 @@ export const SkillDetailModal: React.FC = () => {
       // The custom-version field belongs to the selected skill and must reset on selection.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setCustomTagInput("");
+      setBranchInput(
+        selectedSkill.branchOverride ?? selectedSkill.detectedBranch ?? "",
+      );
     }
   }, [selectedSkill]);
 
@@ -84,6 +89,10 @@ export const SkillDetailModal: React.FC = () => {
     await checkoutCustomVersion(selectedSkill.id, customTagInput.trim());
     setIsInstallingCustom(false);
     setCustomTagInput("");
+  };
+
+  const handleSaveBranch = async () => {
+    await setBranchOverride(selectedSkill.id, branchInput.trim() || null);
   };
 
   const handleRollback = async () => {
@@ -273,6 +282,33 @@ export const SkillDetailModal: React.FC = () => {
                     <span className="text-foreground font-mono">
                       {selectedSkill.branchOrTag || "HEAD"}
                     </span>
+                  </div>
+                  <div className="mt-3 border-t border-border/60 pt-3">
+                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Śledzona gałąź{" "}
+                      {selectedSkill.branchOverride
+                        ? "(ręcznie ustawiona)"
+                        : "(wykryta automatycznie)"}
+                    </label>
+                    <div className="flex gap-1.5">
+                      <input
+                        value={branchInput}
+                        onChange={(event) => setBranchInput(event.target.value)}
+                        placeholder="np. main, develop, next"
+                        className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1.5 font-mono text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <button
+                        onClick={handleSaveBranch}
+                        className="rounded border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary transition-colors hover:bg-primary/20"
+                      >
+                        Zapisz
+                      </button>
+                    </div>
+                    <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+                      Pusta wartość przywraca auto-wykrywanie. Ręczna gałąź ma
+                      priorytet i jej rozbieżność oznacza pakiet do
+                      aktualizacji.
+                    </p>
                   </div>
                 </div>
               </div>

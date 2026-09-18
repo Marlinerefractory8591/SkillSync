@@ -14,6 +14,7 @@ export const SkillList: React.FC = () => {
     selectedScope,
     statusFilter,
     itemTypeFilter,
+    branchFilter,
     fetchSkills,
     openSettings,
   } = useSkillStore();
@@ -25,6 +26,14 @@ export const SkillList: React.FC = () => {
       if (
         selectedScope !== "all" &&
         skill.agentScope.toLowerCase() !== selectedScope.toLowerCase()
+      ) {
+        return false;
+      }
+
+      if (
+        branchFilter === "missing" &&
+        (!skill.isGitRepo ||
+          (skill.branchOverride ?? skill.detectedBranch ?? skill.branchOrTag))
       ) {
         return false;
       }

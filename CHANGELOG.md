@@ -2,6 +2,20 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-09-18
+
+### Added
+
+- Track the detected Git branch for Git-backed Skills, MCP integrations and plugins, with a per-package manual branch override that always takes precedence.
+- Add the **Bez gałęzi** filter to identify Git packages that require a tracking branch before they can be monitored against upstream commits.
+- Add a persistent system menu-bar / system-tray icon setting. The icon restores the window on click and exposes explicit Show and Quit actions.
+
+### Changed
+
+- Split local package discovery from upstream verification. The scan returns local results immediately, then a single background worker checks one upstream source at a time with a 350 ms spacing and streams each result back to its card.
+- Compare tracked branch commits with `origin` without modifying the local worktree. A branch or commit mismatch is presented as an actionable update; updating safely fetches and checks out the selected branch.
+- Display non-SemVer references such as `main` without a misleading `v` prefix.
+
 ## [1.1.2] - 2026-09-17
 
 ### Fixed
@@ -64,6 +78,7 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 - Validate the skill manifest after every update and restore the snapshot when validation fails.
 
 [1.0.0]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.0.0
+[1.2.0]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.2.0
 [1.1.0]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.1.0
 [1.1.1]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.1.1
 [1.1.2]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.1.2

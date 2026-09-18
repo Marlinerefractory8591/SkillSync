@@ -127,6 +127,8 @@ impl SkillDetector {
                         is_git_repo: is_git,
                         remote_url,
                         branch_or_tag,
+                        detected_branch: GitService::get_current_branch_name(dir),
+                        branch_override: None,
                         agent_scope: scope,
                         status: SkillStatus::UpToDate,
                         update_available: false,
@@ -182,6 +184,8 @@ impl SkillDetector {
                 is_git_repo: is_git,
                 remote_url,
                 branch_or_tag,
+                detected_branch: GitService::get_current_branch_name(dir),
+                branch_override: None,
                 agent_scope: scope,
                 status: SkillStatus::UpToDate,
                 update_available: false,
@@ -241,6 +245,8 @@ impl SkillDetector {
                             is_git_repo: is_git,
                             remote_url,
                             branch_or_tag,
+                            detected_branch: GitService::get_current_branch_name(dir),
+                            branch_override: None,
                             agent_scope: scope,
                             status: SkillStatus::UpToDate,
                             update_available: false,
@@ -567,7 +573,10 @@ mod tests {
 
     #[test]
     fn test_update_skill_md_version() {
-        let temp_dir = std::env::temp_dir().join("skillsync_test_skill");
+        let temp_dir = std::env::temp_dir().join(format!(
+            "skillsync-test-skill-{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
         let _ = fs::create_dir_all(&temp_dir);
         let skill_md = temp_dir.join("SKILL.md");
 

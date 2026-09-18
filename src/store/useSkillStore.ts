@@ -35,6 +35,8 @@ interface SkillState {
   selectedScope: string;
   statusFilter: "all" | "updates" | "up_to_date";
   itemTypeFilter: "all" | ManagedItemType;
+  branchFilter: "all" | "missing";
+  queuedChecks: number;
   selectedSkill: SkillMetadata | null;
   isDetailOpen: boolean;
   isSettingsOpen: boolean;
@@ -60,6 +62,8 @@ interface SkillState {
   setSelectedScope: (scope: string) => void;
   setStatusFilter: (filter: "all" | "updates" | "up_to_date") => void;
   setItemTypeFilter: (filter: "all" | ManagedItemType) => void;
+  setBranchFilter: (filter: "all" | "missing") => void;
+  applyScanResult: (skill: SkillMetadata) => void;
   openDetail: (skill: SkillMetadata) => void;
   closeDetail: () => void;
   openSettings: () => void;
@@ -71,6 +75,7 @@ interface SkillState {
   dismissDirtyUpdate: () => void;
   checkGitHubUpdate: (skillId: string) => Promise<void>;
   checkoutCustomVersion: (skillId: string, targetRef: string) => Promise<void>;
+  setBranchOverride: (skillId: string, branch: string | null) => Promise<void>;
   batchUpdateAll: () => Promise<void>;
   rollbackSkill: (skillId: string, snapshotId?: string) => Promise<void>;
   setTheme: (theme: "dark" | "light") => void;
@@ -92,6 +97,8 @@ export const useSkillStore = create<SkillState>()(
     selectedScope: "all",
     statusFilter: "all",
     itemTypeFilter: "all",
+    branchFilter: "all",
+    queuedChecks: 0,
     selectedSkill: null,
     isDetailOpen: false,
     isSettingsOpen: false,
@@ -126,6 +133,9 @@ export const useSkillStore = create<SkillState>()(
         const skills = await api.scanSkills(forceRefresh);
         set((state) => {
           state.skills = skills;
+          state.queuedChecks = skills.filter(
+            (skill) => skill.status === "checking",
+          ).length;
           state.isLoading = false;
           state.isScanning = false;
         });
@@ -159,6 +169,23 @@ export const useSkillStore = create<SkillState>()(
     setItemTypeFilter: (filter: "all" | ManagedItemType) => {
       set((state) => {
         state.itemTypeFilter = filter;
+      });
+    },
+
+    setBranchFilter: (filter: "all" | "missing") => {
+      set((state) => {
+        state.branchFilter = filter;
+      });
+    },
+
+    applyScanResult: (skill: SkillMetadata) => {
+      set((state) => {
+        const index = state.skills.findIndex((item) => item.id === skill.id);
+        if (index !== -1) state.skills[index] = skill;
+        if (state.selectedSkill?.id === skill.id) state.selectedSkill = skill;
+        state.queuedChecks = state.skills.filter(
+          (item) => item.status === "checking",
+        ).length;
       });
     },
 
@@ -311,6 +338,20 @@ export const useSkillStore = create<SkillState>()(
             state.skills[idx].status = "error";
           }
           state.error = formatError(err, "Checkout failed");
+        });
+      }
+    },
+
+    setBranchOverride: async (skillId: string, branch: string | null) => {
+      try {
+        await api.setBranchOverride(skillId, branch);
+        await get().fetchSkills(true);
+      } catch (err: unknown) {
+        set((state) => {
+          state.error = formatError(
+            err,
+            "Nie udało się zapisać gałęzi śledzenia",
+          );
         });
       }
     },

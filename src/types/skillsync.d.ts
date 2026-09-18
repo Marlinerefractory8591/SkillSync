@@ -6,6 +6,7 @@ export type SkillStatus =
   | "update_available"
   | "modified_locally"
   | "corrupted"
+  | "checking"
   | "updating"
   | "error";
 
@@ -33,6 +34,8 @@ export interface SkillMetadata {
   isGitRepo: boolean;
   remoteUrl: string | null;
   branchOrTag: string | null;
+  detectedBranch?: string | null;
+  branchOverride?: string | null;
   agentScope: AgentScope;
   status: SkillStatus;
   updateAvailable: boolean;
@@ -67,6 +70,7 @@ export interface AppConfig {
     language: string;
     launchAtLogin: boolean;
     minimizeToTray: boolean;
+    showTrayIcon: boolean;
     checkAppUpdates: boolean;
   };
   paths: {
@@ -79,6 +83,7 @@ export interface AppConfig {
     concurrencyLimit: number;
     backupRetentionDays: number;
     allowPrerelease: boolean;
+    branchOverrides: Record<string, string>;
   };
   notifications: {
     enabled: boolean;

@@ -14,5 +14,8 @@ export function formatSkillVersion(
     return language === "pl" ? "Nieznana wersja" : "Unknown version";
   }
 
-  return `v${version}`;
+  const value = version!.trim();
+  return /^v?\d+(?:\.\d+){1,3}(?:[-+][0-9A-Za-z.-]+)?$/i.test(value)
+    ? `v${value.replace(/^v/i, "")}`
+    : value;
 }

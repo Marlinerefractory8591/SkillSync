@@ -33,6 +33,7 @@ pub enum SkillStatus {
     UpdateAvailable,
     ModifiedLocally,
     Corrupted,
+    Checking,
     Updating,
     Error(String),
 }
@@ -52,6 +53,12 @@ pub struct SkillMetadata {
     pub is_git_repo: bool,
     pub remote_url: Option<String>,
     pub branch_or_tag: Option<String>,
+    /// Branch reported by the local checkout before a user override is applied.
+    #[serde(default)]
+    pub detected_branch: Option<String>,
+    /// Explicit tracking branch stored in settings; it wins over auto-detection.
+    #[serde(default)]
+    pub branch_override: Option<String>,
     pub agent_scope: AgentScope,
     pub status: SkillStatus,
     pub update_available: bool,

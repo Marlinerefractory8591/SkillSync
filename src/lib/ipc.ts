@@ -156,6 +156,7 @@ const DEFAULT_CONFIG: AppConfig = {
     language: "en",
     launchAtLogin: false,
     minimizeToTray: true,
+    showTrayIcon: true,
     checkAppUpdates: true,
   },
   paths: {
@@ -177,6 +178,7 @@ const DEFAULT_CONFIG: AppConfig = {
     concurrencyLimit: 4,
     backupRetentionDays: 14,
     allowPrerelease: false,
+    branchOverrides: {},
   },
   notifications: {
     enabled: true,
@@ -338,6 +340,16 @@ export const api = {
       return updated;
     }
     return skill;
+  },
+
+  async setBranchOverride(
+    skillId: string,
+    branch: string | null,
+  ): Promise<void> {
+    if (isTauriEnvironment()) {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("set_branch_override", { skillId, branch });
+    }
   },
 
   async checkAppUpdate(): Promise<AppUpdateInfo> {

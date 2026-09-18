@@ -7,10 +7,10 @@ use crate::services::git::GitService;
 use crate::services::github::GitHubService;
 use crate::services::managed_detector::ManagedItemDetector;
 use crate::services::orchestrator::UpdateOrchestrator;
-use std::sync::Arc;
-use tokio::sync::Semaphore;
+use crate::services::scan_queue::ScanQueue;
+use tauri::State;
 
-fn apply_github_release(
+pub(crate) fn apply_github_release(
     skill: &mut SkillMetadata,
     release: &crate::services::github::GitHubReleaseInfo,
 ) {
@@ -32,8 +32,7 @@ fn apply_github_release(
     skill.last_checked = chrono::Utc::now();
 }
 
-#[tauri::command]
-pub async fn scan_skills(_force_refresh: bool) -> Result<Vec<SkillMetadata>, String> {
+fn discover_skills() -> Vec<SkillMetadata> {
     let config = ConfigService::load_config();
     let paths: Vec<_> = config
         .paths
@@ -63,90 +62,46 @@ pub async fn scan_skills(_force_refresh: bool) -> Result<Vec<SkillMetadata>, Str
         }
     }
 
-    // Query GitHub once per remote. The former unbounded JoinSet created one
-    // connection per installed item, which made large installations hit
-    // GitHub throttling/timeouts. The detail view then appeared to work only
-    // because its later, single request was no longer competing with a burst.
-    // Keep the batch below the configured update concurrency and cap it to a
-    // conservative value suitable for GitHub's anonymous endpoints.
-    let mut unique_urls: std::collections::HashSet<String> = std::collections::HashSet::new();
-    for skill in &skills {
-        if let Some(ref url) = skill.remote_url {
-            unique_urls.insert(url.clone());
-        }
-    }
-
-    let max_concurrency = config.updates.concurrency_limit.clamp(1, 4);
-    let semaphore = Arc::new(Semaphore::new(max_concurrency));
-    let mut set = tokio::task::JoinSet::new();
-    for url in unique_urls {
-        let semaphore = Arc::clone(&semaphore);
-        set.spawn(async move {
-            let _permit = semaphore
-                .acquire_owned()
-                .await
-                .expect("GitHub scan semaphore must remain open");
-            let release = GitHubService::check_latest_version(&url).await;
-            (url, release)
-        });
-    }
-
-    let mut releases_map: std::collections::HashMap<
-        String,
-        crate::services::github::GitHubReleaseInfo,
-    > = std::collections::HashMap::new();
-    let mut failed_checks: std::collections::HashMap<String, String> =
-        std::collections::HashMap::new();
-    while let Some(res) = set.join_next().await {
-        if let Ok((url, result)) = res {
-            match result {
-                Ok(Some(release)) => {
-                    releases_map.insert(url, release);
-                }
-                Ok(None) => {}
-                Err(error) => {
-                    failed_checks.insert(url, error);
-                }
-            }
-        }
-    }
-
     for skill in &mut skills {
-        if let Some(ref url) = skill.remote_url {
-            if let Some(release) = releases_map.get(url) {
-                apply_github_release(skill, release);
-            } else if let Some(error) = failed_checks.get(url) {
-                // Do not silently turn an unavailable GitHub source into an
-                // "up to date" result. The card remains actionable and a
-                // retry can be made after connectivity recovers.
-                skill.status = SkillStatus::Error(format!(
-                    "Nie udało się sprawdzić aktualizacji GitHub: {}",
-                    error
-                ));
-                skill.update_available = false;
-                skill.last_checked = chrono::Utc::now();
+        if let Some(branch) = config.updates.branch_overrides.get(&skill.id) {
+            let branch = branch.trim();
+            if !branch.is_empty() {
+                skill.branch_override = Some(branch.to_string());
+                skill.branch_or_tag = Some(branch.to_string());
             }
         }
     }
+
+    skills
+}
+
+#[tauri::command]
+pub async fn scan_skills(
+    app: tauri::AppHandle,
+    queue: State<'_, ScanQueue>,
+    _force_refresh: bool,
+) -> Result<Vec<SkillMetadata>, String> {
+    let mut skills = discover_skills();
+    for skill in &mut skills {
+        if skill.remote_url.is_some() {
+            skill.status = SkillStatus::Checking;
+            skill.update_available = false;
+        }
+    }
+    queue.enqueue(app, skills.clone());
 
     Ok(skills)
 }
 
 #[tauri::command]
 pub async fn check_github_update(skill_id: String) -> Result<SkillMetadata, String> {
-    let all_skills = scan_skills(false).await?;
-    let mut skill = all_skills
+    let all_skills = discover_skills();
+    let skill = all_skills
         .into_iter()
         .find(|s| s.id == skill_id)
         .ok_or_else(|| format!("Skill with ID {} not found", skill_id))?;
 
-    if let Some(ref remote_url) = skill.remote_url {
-        if let Some(release) = GitHubService::check_latest_version(remote_url).await? {
-            apply_github_release(&mut skill, &release);
-        }
-    }
-
-    Ok(skill)
+    Ok(crate::services::scan_queue::refresh_upstream(skill).await)
 }
 
 #[tauri::command]
@@ -159,7 +114,7 @@ pub async fn update_single_skill(
     use crate::models::skill::{UpdateProgressPayload, UpdateStage};
     use tauri::Emitter;
 
-    let all_skills = scan_skills(false).await?;
+    let all_skills = discover_skills();
     let skill = all_skills
         .into_iter()
         .find(|s| s.id == skill_id)
@@ -248,7 +203,7 @@ pub async fn checkout_custom_version(
     skill_id: String,
     target_ref: String,
 ) -> Result<SkillMetadata, String> {
-    let all_skills = scan_skills(false).await?;
+    let all_skills = discover_skills();
     let mut skill = all_skills
         .into_iter()
         .find(|s| s.id == skill_id)
@@ -274,7 +229,7 @@ pub async fn checkout_custom_version(
 
 #[tauri::command]
 pub async fn batch_update_skills(skill_ids: Vec<String>) -> Result<serde_json::Value, String> {
-    let all_skills = scan_skills(false).await?;
+    let all_skills = discover_skills();
     let target_skills: Vec<SkillMetadata> = all_skills
         .into_iter()
         .filter(|s| skill_ids.contains(&s.id))
@@ -293,7 +248,7 @@ pub async fn batch_update_skills(skill_ids: Vec<String>) -> Result<serde_json::V
 
 #[tauri::command]
 pub async fn rollback_skill(skill_id: String, snapshot_id: Option<String>) -> Result<bool, String> {
-    let all_skills = scan_skills(false).await?;
+    let all_skills = discover_skills();
     let skill = all_skills
         .into_iter()
         .find(|s| s.id == skill_id)
@@ -313,6 +268,20 @@ pub async fn rollback_skill(skill_id: String, snapshot_id: Option<String>) -> Re
     } else {
         Err("No backup snapshot found for rollback".into())
     }
+}
+
+#[tauri::command]
+pub fn set_branch_override(skill_id: String, branch: Option<String>) -> Result<(), String> {
+    let mut config = ConfigService::load_config();
+    match branch.map(|value| value.trim().to_string()) {
+        Some(value) if !value.is_empty() => {
+            config.updates.branch_overrides.insert(skill_id, value);
+        }
+        _ => {
+            config.updates.branch_overrides.remove(&skill_id);
+        }
+    }
+    ConfigService::save_config(&config).map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -380,6 +349,8 @@ mod tests {
             is_git_repo: true,
             remote_url: Some("https://github.com/example/release-fixture".to_string()),
             branch_or_tag: Some("main".to_string()),
+            detected_branch: Some("main".to_string()),
+            branch_override: None,
             agent_scope: crate::models::skill::AgentScope::Global,
             status: SkillStatus::UpToDate,
             update_available: false,
@@ -430,6 +401,8 @@ mod tests {
             is_git_repo: false,
             remote_url: None,
             branch_or_tag: None,
+            detected_branch: None,
+            branch_override: None,
             agent_scope: crate::models::skill::AgentScope::Global,
             status: SkillStatus::UpdateAvailable,
             update_available: true,
@@ -472,7 +445,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_agent_browser_detection_and_tag_resolution() {
-        let skills = scan_skills(false).await.unwrap();
+        let skills = discover_skills();
         let agent_browser = skills.iter().find(|s| s.name == "agent-browser");
         if let Some(skill) = agent_browser {
             println!(

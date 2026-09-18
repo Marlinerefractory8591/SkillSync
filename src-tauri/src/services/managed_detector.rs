@@ -116,6 +116,8 @@ impl ManagedItemDetector {
             is_git_repo,
             remote_url: Self::resolve_remote_url(path),
             branch_or_tag: GitService::get_current_ref_name(path),
+            detected_branch: GitService::get_current_branch_name(path),
+            branch_override: None,
             agent_scope: Self::scope_for(&monitored.scope),
             status: SkillStatus::UpToDate,
             update_available: false,

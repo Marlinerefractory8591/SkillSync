@@ -11,4 +11,9 @@ describe("skill version display", () => {
     expect(isKnownSkillVersion("1.9.6")).toBe(true);
     expect(formatSkillVersion("1.9.6-codex.5", "en")).toBe("v1.9.6-codex.5");
   });
+
+  it("does not turn a Git branch into a fake semantic version", () => {
+    expect(formatSkillVersion("main", "en")).toBe("main");
+    expect(formatSkillVersion("release/next", "pl")).toBe("release/next");
+  });
 });

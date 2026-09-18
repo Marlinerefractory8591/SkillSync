@@ -8,16 +8,38 @@ import { UpdateCenterModal } from "./components/UpdateCenterModal";
 import { DirtyWorktreeConfirmation } from "./components/DirtyWorktreeConfirmation";
 import { AppUpdateFooter } from "./components/AppUpdateFooter";
 import { AlertCircle, X } from "lucide-react";
+import { isTauriEnvironment } from "./lib/ipc";
+import type { SkillMetadata } from "./types/skillsync";
 
 export const App: React.FC = () => {
-  const { fetchSkills, loadConfig, checkAppUpdate, config, error, theme } =
-    useSkillStore();
+  const {
+    fetchSkills,
+    loadConfig,
+    checkAppUpdate,
+    applyScanResult,
+    config,
+    error,
+    theme,
+  } = useSkillStore();
   const autoCheckStartedRef = useRef(false);
 
   useEffect(() => {
     fetchSkills();
     loadConfig();
   }, [fetchSkills, loadConfig]);
+
+  useEffect(() => {
+    if (!isTauriEnvironment()) return;
+    let unlisten: (() => void) | undefined;
+    void import("@tauri-apps/api/event").then(({ listen }) =>
+      listen<SkillMetadata>("scan-result", (event) => {
+        applyScanResult(event.payload);
+      }).then((dispose) => {
+        unlisten = dispose;
+      }),
+    );
+    return () => unlisten?.();
+  }, [applyScanResult]);
 
   useEffect(() => {
     if (!config?.general.checkAppUpdates || autoCheckStartedRef.current) {

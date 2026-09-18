@@ -29,6 +29,7 @@ impl Default for AppConfig {
                 language: "pl".into(),
                 launch_at_login: false,
                 minimize_to_tray: true,
+                show_tray_icon: true,
                 check_app_updates: true,
             },
             paths: PathsConfig {
@@ -41,6 +42,7 @@ impl Default for AppConfig {
                 concurrency_limit: 4,
                 backup_retention_days: 14,
                 allow_prerelease: false,
+                branch_overrides: std::collections::HashMap::new(),
             },
             notifications: NotificationsConfig {
                 enabled: true,
@@ -83,7 +85,13 @@ pub struct GeneralConfig {
     pub language: String,
     pub launch_at_login: bool,
     pub minimize_to_tray: bool,
+    #[serde(default = "default_true")]
+    pub show_tray_icon: bool,
     pub check_app_updates: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -258,6 +266,23 @@ mod tests {
 
         let _ = fs::remove_dir_all(root);
     }
+
+    #[test]
+    fn loads_existing_settings_without_a_tray_or_branch_override_field() {
+        let mut legacy = serde_json::to_value(AppConfig::default()).unwrap();
+        legacy["general"]
+            .as_object_mut()
+            .unwrap()
+            .remove("showTrayIcon");
+        legacy["updates"]
+            .as_object_mut()
+            .unwrap()
+            .remove("branchOverrides");
+
+        let loaded: AppConfig = serde_json::from_value(legacy).unwrap();
+        assert!(loaded.general.show_tray_icon);
+        assert!(loaded.updates.branch_overrides.is_empty());
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -268,6 +293,10 @@ pub struct UpdatesConfig {
     pub concurrency_limit: usize,
     pub backup_retention_days: u32,
     pub allow_prerelease: bool,
+    /// Explicit branches selected by the user. They intentionally take
+    /// precedence over the branch detected from the local Git worktree.
+    #[serde(default)]
+    pub branch_overrides: std::collections::HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

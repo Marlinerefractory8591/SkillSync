@@ -26,6 +26,9 @@ export const Navbar: React.FC = () => {
     setStatusFilter,
     itemTypeFilter,
     setItemTypeFilter,
+    branchFilter,
+    setBranchFilter,
+    queuedChecks,
     isScanning,
     fetchSkills,
     batchUpdateAll,
@@ -40,6 +43,11 @@ export const Navbar: React.FC = () => {
 
   const totalSkills = skills.length;
   const outdatedCount = skills.filter((s) => s.updateAvailable).length;
+  const missingBranchCount = skills.filter(
+    (skill) =>
+      skill.isGitRepo &&
+      !(skill.branchOverride ?? skill.detectedBranch ?? skill.branchOrTag),
+  ).length;
 
   // Keyboard shortcut listener
   useEffect(() => {
@@ -302,6 +310,20 @@ export const Navbar: React.FC = () => {
             ))}
           </div>
 
+          <button
+            onClick={() =>
+              setBranchFilter(branchFilter === "missing" ? "all" : "missing")
+            }
+            className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-all ${
+              branchFilter === "missing"
+                ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
+                : "border-border bg-card/60 text-muted-foreground hover:text-foreground"
+            }`}
+            title="Show packages that need a tracking branch assigned"
+          >
+            Bez gałęzi {missingBranchCount > 0 ? `(${missingBranchCount})` : ""}
+          </button>
+
           {/* Scopes Filter */}
           <div className="flex items-center gap-1.5 overflow-x-auto py-1">
             {scopes.map((s) => (
@@ -336,6 +358,12 @@ export const Navbar: React.FC = () => {
                 {outdatedCount}
               </strong>
             </span>
+            {queuedChecks > 0 && (
+              <>
+                <span>•</span>
+                <span className="text-primary">Kolejka: {queuedChecks}</span>
+              </>
+            )}
           </div>
         </div>
       </div>
