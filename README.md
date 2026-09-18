@@ -58,7 +58,7 @@ Download the pre-compiled installer for your operating system from the [Releases
 
 #### macOS security and developer signature
 
-The public CI build is not Developer ID signed or Apple-notarized unless the release explicitly says it is. Before opening a downloaded application, verify its SHA-256 checksum against `checksums.sha256` in the same GitHub Release. If Gatekeeper blocks an unsigned build, use Finder: Control-click the app, choose **Open**, then confirm **Open** in the dialog. Do this only for an asset downloaded from the official [SkillSync Releases](https://github.com/tomaszboloz/SkillSync/releases) page after verifying the checksum. You can inspect a signed build with `codesign --verify --deep --strict /Applications/SkillSync.app` and `spctl --assess --type execute /Applications/SkillSync.app`.
+Every official macOS release is required to be Developer ID signed and Apple-notarized before GitHub can publish it. Verify the `checksums.sha256` file from the same [SkillSync Release](https://github.com/tomaszboloz/SkillSync/releases) before opening a downloaded installer. A release candidate that does not pass the signing and notarization gate is deliberately not published. The release-maintainer setup and local verification commands are documented in [macOS release signing](docs/MACOS_RELEASE_SIGNING.md).
 
 Or run directly from source:
 
