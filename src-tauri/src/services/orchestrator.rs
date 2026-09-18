@@ -79,11 +79,14 @@ impl UpdateOrchestrator {
                     target.display()
                 )));
             }
-            if GitService::is_git_repository(target)
-                && !allow_dirty_worktree
-                && !GitService::is_worktree_clean(target)?
-            {
-                return Err(SkillSyncError::WorktreeDirty);
+            if GitService::is_git_repository(target) && !allow_dirty_worktree {
+                let clean = GitService::is_worktree_clean(target)?;
+                let safe_legacy_skill_metadata = skill.item_type == ManagedItemType::Skill
+                    && !clean
+                    && GitService::has_only_skill_version_metadata_change(target)?;
+                if !clean && !safe_legacy_skill_metadata {
+                    return Err(SkillSyncError::WorktreeDirty);
+                }
             }
         }
 
@@ -175,16 +178,20 @@ impl UpdateOrchestrator {
                 resolved_version = Some(version);
             // A. If Git repo, perform fetch and checkout
             } else if GitService::is_git_repository(target) {
+                let safe_legacy_skill_metadata = skill.item_type == ManagedItemType::Skill
+                    && !GitService::is_worktree_clean(target)?
+                    && GitService::has_only_skill_version_metadata_change(target)?;
+                let allow_git_checkout = allow_dirty_worktree || safe_legacy_skill_metadata;
                 let checkout_result = if let Some(branch) = &explicit_branch {
                     tracked_branch = Some(branch.clone());
                     resolved_latest_version = Some(branch.clone());
-                    GitService::fetch_and_checkout_branch(target, branch, allow_dirty_worktree)
+                    GitService::fetch_and_checkout_branch(target, branch, allow_git_checkout)
                 } else if let Some(requested_tag) = target_version.as_deref() {
                     tracked_branch = None;
                     let version = requested_tag.trim_start_matches(['v', 'V']).to_string();
                     resolved_latest_version = Some(version.clone());
                     resolved_version = Some(version);
-                    GitService::fetch_and_checkout_tag(target, requested_tag, allow_dirty_worktree)
+                    GitService::fetch_and_checkout_tag(target, requested_tag, allow_git_checkout)
                 } else {
                     match GitService::get_latest_remote_tag(target) {
                         Ok(Some(remote_tag)) => {
@@ -195,7 +202,7 @@ impl UpdateOrchestrator {
                             GitService::fetch_and_checkout_tag(
                                 target,
                                 &remote_tag,
-                                allow_dirty_worktree,
+                                allow_git_checkout,
                             )
                         }
                         Ok(None) => {
@@ -208,7 +215,7 @@ impl UpdateOrchestrator {
                             GitService::fetch_and_checkout_branch(
                                 target,
                                 &branch,
-                                allow_dirty_worktree,
+                                allow_git_checkout,
                             )
                         }
                         Err(error) => Err(error),
@@ -253,6 +260,26 @@ impl UpdateOrchestrator {
                 Self::update_skill_json_version(target, &target_tag)?;
                 if SkillManifest::is_explicit_package_skill(target) {
                     Self::update_package_json_version(target, &target_tag)?;
+                }
+            }
+
+            // Some upstreams evolve a tracked SKILL.md into a portable Node
+            // package. The package is still the same skill only when its
+            // declared name matches the discovered skill and it exposes a
+            // command entry point. Keep it discoverable with a local adapter
+            // instead of rolling back an otherwise valid tagged release.
+            if skill.item_type == ManagedItemType::Skill
+                && GitService::is_git_repository(target)
+                && !Self::verify_integrity(&skill.item_type, target)
+            {
+                let adapter_version = resolved_latest_version.as_deref().unwrap_or(&target_tag);
+                if let Err(error) =
+                    Self::materialize_package_skill_adapter(target, &skill.name, adapter_version)
+                {
+                    for (t, snap) in &snapshots {
+                        let _ = BackupService::restore_snapshot(t, &snap.backup_file_path);
+                    }
+                    return Err(error);
                 }
             }
 
@@ -508,6 +535,56 @@ impl UpdateOrchestrator {
     fn verify_integrity(item_type: &ManagedItemType, path: &Path) -> bool {
         ManagedManifest::validate(item_type, path).is_ok()
     }
+
+    /// Write a local adapter only for a confirmed CLI package that replaces an
+    /// earlier SKILL.md in the *same* Git repository. This is intentionally
+    /// narrow: malformed manifests and unrelated package.json files continue
+    /// to fail the integrity gate instead of being silently reclassified.
+    fn materialize_package_skill_adapter(
+        dir: &Path,
+        expected_name: &str,
+        version: &str,
+    ) -> Result<(), SkillSyncError> {
+        if dir.join("SKILL.md").exists() || dir.join("skill.json").exists() {
+            return Ok(());
+        }
+
+        let package_path = dir.join("package.json");
+        let content = fs::read_to_string(&package_path).map_err(|error| {
+            SkillSyncError::IntegrityCheckFailed(format!(
+                "Brak obsługiwanego manifestu i nie można odczytać package.json w {}: {error}",
+                dir.display()
+            ))
+        })?;
+        let package: serde_json::Value = serde_json::from_str(&content).map_err(|_| {
+            SkillSyncError::IntegrityCheckFailed(format!(
+                "Brak obsługiwanego manifestu, a package.json nie zawiera poprawnego JSON w {}",
+                dir.display()
+            ))
+        })?;
+        let package_name = package.get("name").and_then(serde_json::Value::as_str);
+        let has_command = package.get("bin").is_some();
+        if package_name != Some(expected_name) || !has_command {
+            return Err(SkillSyncError::IntegrityCheckFailed(format!(
+                "Tag nie zawiera manifestu skilla ani potwierdzonego pakietu CLI '{}' w {}",
+                expected_name,
+                dir.display()
+            )));
+        }
+
+        let description = package
+            .get("description")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("Portable AI agent skill package")
+            .replace('\n', " ");
+        let adapter = format!(
+            "---\nname: {expected_name}\ndescription: {description}\nmetadata:\n  version: \"{}\"\n  generated-by: SkillSync\n---\n\n# {expected_name}\n\nThis local SkillSync adapter preserves discovery for the tagged CLI package. Run the command declared in package.json or consult README.md for usage.\n",
+            version.trim_start_matches(['v', 'V'])
+        );
+        fs::write(dir.join("SKILL.md"), adapter)?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -617,6 +694,84 @@ mod tests {
             UpdateOrchestrator::version_from_manifest(&ManagedItemType::Skill, &dir),
             Some("1.1.0".to_string())
         );
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[tokio::test]
+    async fn keeps_a_tagged_cli_skill_discoverable_when_upstream_removes_skill_md() {
+        let dir = fixture_dir("portable-cli-skill");
+        fs::create_dir_all(&dir).unwrap();
+        let repo = git2::Repository::init(&dir).unwrap();
+        let signature = git2::Signature::now("SkillSync test", "tests@example.invalid").unwrap();
+        let skill_md = dir.join("SKILL.md");
+        fs::write(
+            &skill_md,
+            "---\nname: fixture\nmetadata:\n  version: \"1.0.0\"\n---\n# Fixture\n",
+        )
+        .unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(Path::new("SKILL.md")).unwrap();
+        index.write().unwrap();
+        let tree = repo.find_tree(index.write_tree().unwrap()).unwrap();
+        let first = repo
+            .commit(
+                Some("HEAD"),
+                &signature,
+                &signature,
+                "skill manifest",
+                &tree,
+                &[],
+            )
+            .unwrap();
+        let first_object = repo.find_object(first, None).unwrap();
+        repo.tag_lightweight("v1.0.0", &first_object, false)
+            .unwrap();
+
+        fs::remove_file(&skill_md).unwrap();
+        fs::write(
+            dir.join("package.json"),
+            r#"{"name":"fixture","version":"1.1.0","description":"Portable fixture","bin":{"fixture":"bin/fixture.js"}}"#,
+        )
+        .unwrap();
+        let mut index = repo.index().unwrap();
+        index.remove_path(Path::new("SKILL.md")).unwrap();
+        index.add_path(Path::new("package.json")).unwrap();
+        index.write().unwrap();
+        let tree = repo.find_tree(index.write_tree().unwrap()).unwrap();
+        let parent = repo.head().unwrap().peel_to_commit().unwrap();
+        let second = repo
+            .commit(
+                Some("HEAD"),
+                &signature,
+                &signature,
+                "portable package",
+                &tree,
+                &[&parent],
+            )
+            .unwrap();
+        let second_object = repo.find_object(second, None).unwrap();
+        repo.tag_lightweight("v1.1.0", &second_object, false)
+            .unwrap();
+
+        let initial = repo.find_commit(first).unwrap();
+        repo.checkout_tree(initial.as_object(), None).unwrap();
+        repo.set_head_detached(first).unwrap();
+
+        let mut metadata = metadata_for(dir.clone());
+        metadata.name = "fixture".to_string();
+        metadata.current_version = "1.0.0".to_string();
+        metadata.is_git_repo = true;
+
+        let updated =
+            UpdateOrchestrator::update_skill_atomic(&metadata, Some("1.1.0".to_string()), false)
+                .await
+                .unwrap();
+
+        assert_eq!(updated.current_version, "1.1.0");
+        assert!(ManagedManifest::validate(&ManagedItemType::Skill, &dir).is_ok());
+        let adapter = fs::read_to_string(dir.join("SKILL.md")).unwrap();
+        assert!(adapter.contains("generated-by: SkillSync"));
+        assert!(adapter.contains("version: \"1.1.0\""));
         let _ = fs::remove_dir_all(dir);
     }
 

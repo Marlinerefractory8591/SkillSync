@@ -285,6 +285,62 @@ impl GitService {
             .all(|entry| entry.status() == Status::WT_DELETED))
     }
 
+    /// A failed legacy SkillSync update could add only `metadata.version` to a
+    /// tracked SKILL.md before the integrity gate rolled the checkout back.
+    /// That isolated bookkeeping delta is safe to replace from the snapshot;
+    /// every other tracked or staged change remains protected as dirty state.
+    pub fn has_only_skill_version_metadata_change(path: &Path) -> Result<bool, SkillSyncError> {
+        let repo = Repository::discover(path)?;
+        let mut options = StatusOptions::new();
+        options
+            .include_untracked(false)
+            .include_ignored(false)
+            .recurse_untracked_dirs(false);
+        let statuses = repo.statuses(Some(&mut options))?;
+        if statuses.is_empty()
+            || !statuses.iter().all(|entry| {
+                entry.status() == Status::WT_MODIFIED && entry.path().ok() == Some("SKILL.md")
+            })
+        {
+            return Ok(false);
+        }
+
+        let output = std::process::Command::new("git")
+            .args([
+                "-C",
+                path.to_str().unwrap_or("."),
+                "diff",
+                "--no-ext-diff",
+                "--unified=0",
+                "HEAD",
+                "--",
+                "SKILL.md",
+            ])
+            .output()
+            .map_err(|error| SkillSyncError::FileSystem(error.to_string()))?;
+        if !output.status.success() {
+            return Err(SkillSyncError::Git {
+                code: output.status.code().unwrap_or(-1),
+                message: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+            });
+        }
+
+        let mut found_metadata_change = false;
+        for line in String::from_utf8_lossy(&output.stdout).lines() {
+            if line.starts_with("+++") || line.starts_with("---") || line.starts_with("@@") {
+                continue;
+            }
+            if let Some(changed_line) = line.strip_prefix('+').or_else(|| line.strip_prefix('-')) {
+                if changed_line.trim_start().starts_with("version:") {
+                    found_metadata_change = true;
+                    continue;
+                }
+                return Ok(false);
+            }
+        }
+        Ok(found_metadata_change)
+    }
+
     pub fn get_head_tag(path: &Path) -> Option<String> {
         let repo = Repository::discover(path).ok()?;
         let head = repo.head().ok()?;
@@ -690,6 +746,46 @@ mod tests {
         fs::write(path.join("SKILL.md"), "locally changed\n").unwrap();
 
         assert!(!GitService::is_worktree_clean(&path).unwrap());
+
+        let _ = fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn recognizes_only_the_legacy_skill_version_bookkeeping_change() {
+        let path = committed_repo("legacy-version-metadata");
+        let repo = Repository::open(&path).unwrap();
+        let original =
+            "---\nname: fixture\nmetadata:\n  short-description: Fixture\n---\n# Fixture\n";
+        fs::write(path.join("SKILL.md"), original).unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(Path::new("SKILL.md")).unwrap();
+        index.write().unwrap();
+        let tree = repo.find_tree(index.write_tree().unwrap()).unwrap();
+        let parent = repo.head().unwrap().peel_to_commit().unwrap();
+        let signature = git2::Signature::now("SkillSync test", "tests@example.invalid").unwrap();
+        repo.commit(
+            Some("HEAD"),
+            &signature,
+            &signature,
+            "skill frontmatter",
+            &tree,
+            &[&parent],
+        )
+        .unwrap();
+
+        fs::write(
+            path.join("SKILL.md"),
+            "---\nname: fixture\nmetadata:\n  version: \"1.1.0\"\n  short-description: Fixture\n---\n# Fixture\n",
+        )
+        .unwrap();
+        assert!(GitService::has_only_skill_version_metadata_change(&path).unwrap());
+
+        fs::write(
+            path.join("SKILL.md"),
+            "---\nname: fixture\ndescription: changed\nmetadata:\n  version: \"1.1.0\"\n  short-description: Fixture\n---\n# Fixture\n",
+        )
+        .unwrap();
+        assert!(!GitService::has_only_skill_version_metadata_change(&path).unwrap());
 
         let _ = fs::remove_dir_all(path);
     }
