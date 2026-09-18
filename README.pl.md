@@ -4,7 +4,7 @@
 
 > Jeśli SkillSync oszczędza Ci czas, daj projektowi ⭐ na GitHubie i udostępnij go w swoich social media. To prosty sposób, aby inni użytkownicy Claude Code, Codexa, Cursor i Gemini mogli znaleźć bezpieczny aktualizator skills.
 
-[English documentation](README.md) · [Instrukcja SEO/AEO/GEO](docs/AI-SEARCH-AND-SEO.md) · [Zasady wersjonowania](docs/SEMVER_RELEASE.md) · [CI i release](.github/workflows/ci.yml)
+[English documentation](README.md) · [Zasady wersjonowania](docs/SEMVER_RELEASE.md) · [CI i release](.github/workflows/ci.yml)
 
 ![SkillSync — pusty stan bez danych użytkownika](docs/screenshots/empty-state.png)
 
