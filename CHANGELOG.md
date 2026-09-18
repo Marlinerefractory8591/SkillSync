@@ -2,6 +2,20 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
 
+## [1.2.6] - 2026-09-18
+
+### Fixed
+
+- Preserve symlinks inside safety snapshots instead of dereferencing them. A dangling package-manager link can no longer abort an otherwise valid update with `No such file or directory`.
+- Preflight every detected installation location before any snapshot or checkout. A missing, broken or non-directory location now aborts the whole transaction with its exact path, so no copy is left on a different version.
+- Treat nested resources in one Git worktree as one update operation: one dirty-state check, one snapshot and one checkout. This prevents competing checkouts from invalidating a sibling resource during a bulk update.
+- Verify every declared location after the update and roll back all affected roots when manifests or detected versions diverge.
+- Give every safety snapshot a unique filename, so simultaneous locations of one package cannot overwrite one another before a rollback.
+
+### Security
+
+- Safety archives no longer follow links outside the managed resource tree.
+
 ## [1.2.0] - 2026-09-18
 
 ### Added
@@ -82,3 +96,4 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 [1.1.0]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.1.0
 [1.1.1]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.1.1
 [1.1.2]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.1.2
+[1.2.6]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.2.6

@@ -11,10 +11,25 @@ use crate::services::manifest::SkillManifest;
 use crate::services::mcp::McpService;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use tokio::sync::Semaphore;
 
 pub struct UpdateOrchestrator;
+
+// Discovery can expose multiple resources from one Git worktree. Serialising
+// update transactions keeps a batch update from checking out the same
+// repository while another resource is creating its safety snapshot.
+static UPDATE_TRANSACTION_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct UpdateOperation {
+    /// The directory to mutate or snapshot. For Git installations this is
+    /// always the repository worktree, never a nested SKILL.md directory.
+    target: PathBuf,
+    /// The resource manifest that made this operation eligible for update.
+    logical_target: PathBuf,
+    is_git: bool,
+}
 
 impl UpdateOrchestrator {
     pub async fn update_skill_atomic(
@@ -22,6 +37,11 @@ impl UpdateOrchestrator {
         target_version: Option<String>,
         allow_dirty_worktree: bool,
     ) -> Result<SkillMetadata, SkillSyncError> {
+        let _transaction_guard = UPDATE_TRANSACTION_LOCK
+            .get_or_init(|| tokio::sync::Mutex::new(()))
+            .lock()
+            .await;
+
         // Only a user-selected branch overrides the release policy. A branch
         // merely detected from the current checkout is not a tracking choice:
         // tagged repositories must continue to update by their newest tag.
@@ -41,20 +61,11 @@ impl UpdateOrchestrator {
             locations.push(skill.path.clone());
         }
 
-        // Deduplicate canonical target paths
-        let mut canonical_targets: Vec<PathBuf> = Vec::new();
-        for loc in &locations {
-            let canon = fs::canonicalize(loc).unwrap_or_else(|_| loc.clone());
-            if !canonical_targets.contains(&canon) && canon.exists() {
-                canonical_targets.push(canon);
-            }
-        }
-
-        if canonical_targets.is_empty() && !skill.path.exists() {
-            return Err(SkillSyncError::FileSystem(
-                "Directory does not exist".into(),
-            ));
-        }
+        // Resolve *every* declared location before creating a snapshot or
+        // checking anything out. Silently dropping a missing path made a
+        // partial update look successful and left a stale installation behind.
+        let canonical_targets = Self::resolve_locations(&locations)?;
+        let operations = Self::plan_operations(&canonical_targets);
 
         // Never snapshot, check out, or rewrite an arbitrary directory. The
         // detector should make this guard unreachable in normal use, but it is
@@ -79,7 +90,15 @@ impl UpdateOrchestrator {
                     target.display()
                 )));
             }
-            if GitService::is_git_repository(target) && !allow_dirty_worktree {
+        }
+
+        // A repository can expose several nested skills. It is one working
+        // tree, so check its dirty state once and perform at most one checkout
+        // for it. This prevents concurrent/nested entries from invalidating
+        // each other's path during an update.
+        for operation in &operations {
+            if operation.is_git && !allow_dirty_worktree {
+                let target = &operation.target;
                 let clean = GitService::is_worktree_clean(target)?;
                 let safe_legacy_skill_metadata = skill.item_type == ManagedItemType::Skill
                     && !clean
@@ -92,52 +111,55 @@ impl UpdateOrchestrator {
 
         // 1. Stage: Create Atomic Snapshots for all target paths
         let mut snapshots = Vec::new();
-        for target in &canonical_targets {
-            let snapshot_target =
-                GitService::repository_root(target).unwrap_or_else(|| target.clone());
-            if snapshots.iter().any(|(path, _)| path == &snapshot_target) {
-                continue;
-            }
+        for operation in &operations {
+            let snapshot_target = &operation.target;
             let snapshot =
-                BackupService::create_snapshot(&snapshot_target, &skill.id, &skill.current_version)
+                BackupService::create_snapshot(snapshot_target, &skill.id, &skill.current_version)
                     .map_err(|error| {
                         SkillSyncError::FileSystem(format!(
-                            "Nie udało się utworzyć migawki bezpieczeństwa dla {}: {error}",
-                            target.display()
+                            "Nie udało się utworzyć migawki bezpieczeństwa dla zasobu {} (katalog kopii: {}): {error}",
+                            operation.logical_target.display(),
+                            snapshot_target.display(),
                         ))
                     })?;
-            snapshots.push((snapshot_target, snapshot));
+            snapshots.push((snapshot_target.clone(), snapshot));
         }
 
         // 2. Stage: Perform updates across all locations
         let mut resolved_version: Option<String> = None;
         let mut resolved_locations: Option<Vec<PathBuf>> = None;
-        for target in &canonical_targets {
+        for operation in &operations {
+            let target = &operation.target;
+            let logical_target = &operation.logical_target;
             let manifest =
-                ManagedManifest::validate(&skill.item_type, target).map_err(|reason| {
-                    SkillSyncError::InvalidManifest(format!("{}: {reason}", target.display()))
+                ManagedManifest::validate(&skill.item_type, logical_target).map_err(|reason| {
+                    SkillSyncError::InvalidManifest(format!(
+                        "{}: {reason}",
+                        logical_target.display()
+                    ))
                 })?;
-            let mut verification_targets = vec![target.clone()];
+            let mut verification_targets = vec![logical_target.clone()];
 
             // Laravel Boost installed in an application root is owned by
             // Composer, not by the application's Git remote. Run its explicit
             // adapter only when lockfile evidence proves it is installed.
             if skill.item_type == ManagedItemType::Mcp
                 && manifest == ManagedManifestKind::LaravelBoost
-                && McpService::is_laravel_boost_project(target)
+                && McpService::is_laravel_boost_project(logical_target)
             {
-                if let Err(error) = McpService::update_laravel_boost(target) {
+                if let Err(error) = McpService::update_laravel_boost(logical_target) {
                     for (t, snap) in &snapshots {
                         let _ = BackupService::restore_snapshot(t, &snap.backup_file_path);
                     }
                     return Err(error);
                 }
-                let version = McpService::laravel_boost_version(target).ok_or_else(|| {
-                    SkillSyncError::IntegrityCheckFailed(format!(
-                        "composer.lock nie zawiera laravel/boost po aktualizacji w {}",
-                        target.display()
-                    ))
-                })?;
+                let version =
+                    McpService::laravel_boost_version(logical_target).ok_or_else(|| {
+                        SkillSyncError::IntegrityCheckFailed(format!(
+                            "composer.lock nie zawiera laravel/boost po aktualizacji w {}",
+                            logical_target.display()
+                        ))
+                    })?;
                 if let Some(previous) = &resolved_version {
                     if previous != &version {
                         for (t, snap) in &snapshots {
@@ -155,9 +177,9 @@ impl UpdateOrchestrator {
             // their registry, never by copying cache files directly.
             } else if skill.item_type == ManagedItemType::Plugin
                 && manifest == ManagedManifestKind::Plugin
-                && ClaudePluginService::installation_for_path(target).is_some()
+                && ClaudePluginService::installation_for_path(logical_target).is_some()
             {
-                let locations = match ClaudePluginService::update(target) {
+                let locations = match ClaudePluginService::update(logical_target) {
                     Ok(locations) => locations,
                     Err(error) => {
                         for (t, snap) in &snapshots {
@@ -177,7 +199,7 @@ impl UpdateOrchestrator {
                 resolved_locations = Some(locations);
                 resolved_version = Some(version);
             // A. If Git repo, perform fetch and checkout
-            } else if GitService::is_git_repository(target) {
+            } else if operation.is_git {
                 let safe_legacy_skill_metadata = skill.item_type == ManagedItemType::Skill
                     && !GitService::is_worktree_clean(target)?
                     && GitService::has_only_skill_version_metadata_change(target)?;
@@ -234,7 +256,7 @@ impl UpdateOrchestrator {
                         GitHubService::fetch_raw_skill_md(remote_url, &target_tag, &skill.name)
                             .await
                     {
-                        let skill_md_path = target.join("SKILL.md");
+                        let skill_md_path = logical_target.join("SKILL.md");
                         let _ = fs::write(&skill_md_path, upstream_content);
                     }
                 }
@@ -249,17 +271,17 @@ impl UpdateOrchestrator {
             }
 
             // B. Update manifests on disk (SKILL.md, skill.json, package.json)
-            if skill.item_type == ManagedItemType::Skill && !GitService::is_git_repository(target) {
-                if let Err(e) = Self::update_skill_md_version(target, &target_tag) {
+            if skill.item_type == ManagedItemType::Skill && !operation.is_git {
+                if let Err(e) = Self::update_skill_md_version(logical_target, &target_tag) {
                     for (t, snap) in &snapshots {
                         let _ = BackupService::restore_snapshot(t, &snap.backup_file_path);
                     }
                     return Err(e);
                 }
 
-                Self::update_skill_json_version(target, &target_tag)?;
-                if SkillManifest::is_explicit_package_skill(target) {
-                    Self::update_package_json_version(target, &target_tag)?;
+                Self::update_skill_json_version(logical_target, &target_tag)?;
+                if SkillManifest::is_explicit_package_skill(logical_target) {
+                    Self::update_package_json_version(logical_target, &target_tag)?;
                 }
             }
 
@@ -270,12 +292,14 @@ impl UpdateOrchestrator {
             // instead of rolling back an otherwise valid tagged release.
             if skill.item_type == ManagedItemType::Skill
                 && GitService::is_git_repository(target)
-                && !Self::verify_integrity(&skill.item_type, target)
+                && !Self::verify_integrity(&skill.item_type, logical_target)
             {
                 let adapter_version = resolved_latest_version.as_deref().unwrap_or(&target_tag);
-                if let Err(error) =
-                    Self::materialize_package_skill_adapter(target, &skill.name, adapter_version)
-                {
+                if let Err(error) = Self::materialize_package_skill_adapter(
+                    logical_target,
+                    &skill.name,
+                    adapter_version,
+                ) {
                     for (t, snap) in &snapshots {
                         let _ = BackupService::restore_snapshot(t, &snap.backup_file_path);
                     }
@@ -300,7 +324,8 @@ impl UpdateOrchestrator {
             // us the new package version. Re-read the manifest after checkout
             // instead of leaving the pre-update version in the UI.
             if tracked_branch.is_some() {
-                if let Some(version) = Self::version_from_manifest(&skill.item_type, target) {
+                if let Some(version) = Self::version_from_manifest(&skill.item_type, logical_target)
+                {
                     if let Some(previous) = &resolved_version {
                         if previous != &version {
                             for (t, snap) in &snapshots {
@@ -315,6 +340,41 @@ impl UpdateOrchestrator {
                     }
                 }
             }
+        }
+
+        // The operation can only be reported as successful once every
+        // location supplied by discovery still exists and exposes a valid
+        // manifest. This catches stale aliases and nested package paths after
+        // a checkout before the UI persists an optimistic version.
+        let mut observed_versions = Vec::new();
+        for target in &canonical_targets {
+            if !Self::verify_integrity(&skill.item_type, target) {
+                for (snapshot_target, snapshot) in &snapshots {
+                    let _ = BackupService::restore_snapshot(
+                        snapshot_target,
+                        &snapshot.backup_file_path,
+                    );
+                }
+                return Err(SkillSyncError::IntegrityCheckFailed(format!(
+                    "Manifest zasobu jest uszkodzony lub nieobecny po aktualizacji w {:?}",
+                    target
+                )));
+            }
+            if let Some(version) = Self::version_from_manifest(&skill.item_type, target) {
+                if !observed_versions.contains(&version) {
+                    observed_versions.push(version);
+                }
+            }
+        }
+        if observed_versions.len() > 1 {
+            for (snapshot_target, snapshot) in &snapshots {
+                let _ =
+                    BackupService::restore_snapshot(snapshot_target, &snapshot.backup_file_path);
+            }
+            return Err(SkillSyncError::IntegrityCheckFailed(
+                "różne lokalizacje mają różne wersje po aktualizacji; przywrócono wszystkie migawki"
+                    .to_string(),
+            ));
         }
 
         // Return updated metadata
@@ -356,6 +416,53 @@ impl UpdateOrchestrator {
         }
 
         Ok(updated)
+    }
+
+    fn resolve_locations(locations: &[PathBuf]) -> Result<Vec<PathBuf>, SkillSyncError> {
+        let mut resolved = Vec::new();
+        for location in locations {
+            let canonical = fs::canonicalize(location).map_err(|error| {
+                SkillSyncError::FileSystem(format!(
+                    "Lokalizacja instalacji jest niedostępna: {} ({error}). Aktualizacja została przerwana przed utworzeniem migawki, aby żadna lokalizacja nie pozostała na innej wersji.",
+                    location.display()
+                ))
+            })?;
+            if !canonical.is_dir() {
+                return Err(SkillSyncError::FileSystem(format!(
+                    "Lokalizacja instalacji nie jest katalogiem: {}. Aktualizacja została przerwana przed utworzeniem migawki.",
+                    location.display()
+                )));
+            }
+            if !resolved.contains(&canonical) {
+                resolved.push(canonical);
+            }
+        }
+        if resolved.is_empty() {
+            return Err(SkillSyncError::FileSystem(
+                "Brak lokalizacji instalacji do aktualizacji".into(),
+            ));
+        }
+        Ok(resolved)
+    }
+
+    fn plan_operations(locations: &[PathBuf]) -> Vec<UpdateOperation> {
+        let mut operations = Vec::new();
+        for location in locations {
+            let git_root = GitService::repository_root(location);
+            let target = git_root.clone().unwrap_or_else(|| location.clone());
+            if operations
+                .iter()
+                .any(|operation: &UpdateOperation| operation.target == target)
+            {
+                continue;
+            }
+            operations.push(UpdateOperation {
+                target,
+                logical_target: location.clone(),
+                is_git: git_root.is_some(),
+            });
+        }
+        operations
     }
 
     fn version_from_manifest(item_type: &ManagedItemType, path: &Path) -> Option<String> {
@@ -625,6 +732,39 @@ mod tests {
             update_compatibility: None,
             installed_locations: vec![path],
         }
+    }
+
+    #[test]
+    fn rejects_an_unavailable_location_before_any_snapshot_or_checkout() {
+        let missing = fixture_dir("unavailable-location");
+        let error = UpdateOrchestrator::resolve_locations(std::slice::from_ref(&missing))
+            .expect_err("an unavailable location must abort the complete transaction");
+
+        assert!(matches!(error, SkillSyncError::FileSystem(_)));
+        assert!(error.to_string().contains(&missing.display().to_string()));
+        assert!(error.to_string().contains("przed utworzeniem migawki"));
+    }
+
+    #[test]
+    fn plans_one_git_operation_for_nested_locations_in_the_same_repository() {
+        let root = fixture_dir("nested-operation");
+        let first = root.join("skills/first");
+        let second = root.join("skills/second");
+        fs::create_dir_all(&first).unwrap();
+        fs::create_dir_all(&second).unwrap();
+        git2::Repository::init(&root).unwrap();
+
+        let locations = vec![
+            fs::canonicalize(&first).unwrap(),
+            fs::canonicalize(&second).unwrap(),
+        ];
+        let operations = UpdateOrchestrator::plan_operations(&locations);
+
+        assert_eq!(operations.len(), 1);
+        assert_eq!(operations[0].target, fs::canonicalize(&root).unwrap());
+        assert_eq!(operations[0].logical_target, locations[0]);
+        assert!(operations[0].is_git);
+        let _ = fs::remove_dir_all(root);
     }
 
     #[tokio::test]

@@ -23,13 +23,27 @@ impl BackupService {
     ) -> Result<BackupSnapshot, SkillSyncError> {
         let backup_dir = Self::get_backup_dir();
         let timestamp = chrono::Utc::now();
-        let filename = format!("{}_{}.tar.gz", skill_id, timestamp.format("%Y%m%d_%H%M%S"));
+        // One transaction may snapshot several installations of the same
+        // resource in the same second. Include nanoseconds so snapshots never
+        // overwrite each other before rollback has a chance to use them.
+        let filename = format!(
+            "{}_{}_{}.tar.gz",
+            skill_id,
+            timestamp.format("%Y%m%d_%H%M%S"),
+            timestamp.timestamp_nanos_opt().unwrap_or_default()
+        );
         let target_file = backup_dir.join(&filename);
 
         let file = File::create(&target_file)?;
         let enc = GzEncoder::new(file, Compression::default());
         let mut tar = tar::Builder::new(enc);
 
+        // A managed package may legitimately contain symlinks (including a
+        // dangling link left by a package manager).  The tar crate follows
+        // links by default, which both makes a snapshot escape its source
+        // tree and turns a harmless dangling link into ENOENT.  Preserve the
+        // link itself instead, just like the platform tar implementations.
+        tar.follow_symlinks(false);
         tar.append_dir_all(".", skill_path)?;
         tar.finish()?;
 
@@ -231,5 +245,76 @@ mod tests {
         ));
         let _ = fs::remove_file(sidecar);
         let _ = fs::remove_file(snapshot.backup_file_path);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn snapshot_preserves_a_dangling_symlink_without_following_it() {
+        use std::os::unix::fs::symlink;
+
+        let root = std::env::temp_dir().join(format!(
+            "skillsync-backup-link-{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        fs::create_dir_all(&root).unwrap();
+        symlink("missing-target", root.join("stale-link")).unwrap();
+
+        let snapshot = BackupService::create_snapshot(&root, "link-test", "1.0.0")
+            .expect("a dangling symlink is valid backup content");
+        fs::remove_file(root.join("stale-link")).unwrap();
+        BackupService::restore_snapshot(&root, &snapshot.backup_file_path).unwrap();
+
+        assert_eq!(
+            fs::read_link(root.join("stale-link")).unwrap(),
+            PathBuf::from("missing-target")
+        );
+        let _ = fs::remove_dir_all(root);
+        let sidecar = snapshot.backup_file_path.with_file_name(format!(
+            "{}.meta.json",
+            snapshot
+                .backup_file_path
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+        ));
+        let _ = fs::remove_file(sidecar);
+        let _ = fs::remove_file(snapshot.backup_file_path);
+    }
+
+    #[test]
+    fn snapshots_for_multiple_locations_never_share_a_backup_file() {
+        let first = std::env::temp_dir().join(format!(
+            "skillsync-backup-first-{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        let second = std::env::temp_dir().join(format!(
+            "skillsync-backup-second-{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        fs::create_dir_all(&first).unwrap();
+        fs::create_dir_all(&second).unwrap();
+
+        let first_snapshot =
+            BackupService::create_snapshot(&first, "same-resource", "1.0.0").unwrap();
+        let second_snapshot =
+            BackupService::create_snapshot(&second, "same-resource", "1.0.0").unwrap();
+
+        assert_ne!(
+            first_snapshot.backup_file_path,
+            second_snapshot.backup_file_path
+        );
+        for (root, snapshot) in [(&first, first_snapshot), (&second, second_snapshot)] {
+            let _ = fs::remove_dir_all(root);
+            let sidecar = snapshot.backup_file_path.with_file_name(format!(
+                "{}.meta.json",
+                snapshot
+                    .backup_file_path
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+            ));
+            let _ = fs::remove_file(sidecar);
+            let _ = fs::remove_file(snapshot.backup_file_path);
+        }
     }
 }
