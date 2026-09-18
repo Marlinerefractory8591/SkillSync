@@ -58,7 +58,15 @@ Download the pre-compiled installer for your operating system from the [Releases
 
 #### macOS security and developer signature
 
-Every official macOS release is required to be Developer ID signed and Apple-notarized before GitHub can publish it. Verify the `checksums.sha256` file from the same [SkillSync Release](https://github.com/tomaszboloz/SkillSync/releases) before opening a downloaded installer. A release candidate that does not pass the signing and notarization gate is deliberately not published. The release-maintainer setup and local verification commands are documented in [macOS release signing](docs/MACOS_RELEASE_SIGNING.md).
+SkillSync for macOS is distributed as a `.dmg`. Always verify its SHA-256 digest against `checksums.sha256` from the same [SkillSync Release](https://github.com/tomaszboloz/SkillSync/releases) before opening it. Depending on the release configuration, macOS may show the standard Gatekeeper message that an internet-downloaded, non-notarized app “is damaged”; this does **not** prove that the DMG checksum is wrong.
+
+After verifying the checksum, copy `SkillSync.app` to `/Applications`, then Control-click it in Finder and choose **Open**. If macOS still blocks it, open **System Settings → Privacy & Security** and choose **Open Anyway** for SkillSync. As a final, explicit local action after checksum verification, the quarantine flag can be removed with:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/SkillSync.app
+```
+
+Never run that command for an installer from an untrusted source. When Apple Developer ID credentials are configured for the release workflow, the same DMG is also signed and notarized. The optional maintainer setup and verification commands are documented in [macOS release signing](docs/MACOS_RELEASE_SIGNING.md).
 
 Or run directly from source:
 
