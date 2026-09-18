@@ -26,10 +26,8 @@ impl GitService {
     }
 
     pub fn repository_root(path: &Path) -> Option<PathBuf> {
-        Repository::discover(path)
-            .ok()?
-            .workdir()
-            .map(|root| root.to_path_buf())
+        let root = Repository::discover(path).ok()?.workdir()?.to_path_buf();
+        fs::canonicalize(root).ok()
     }
 
     pub fn get_remote_url(path: &Path) -> Option<String> {
