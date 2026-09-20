@@ -91,11 +91,10 @@ impl SkillDetector {
                         .and_then(|n| n.as_str())
                         .unwrap_or(&folder_name)
                         .to_string();
-                    let version = v
+                    let manifest_version = v
                         .get("version")
                         .and_then(|ver| ver.as_str())
-                        .unwrap_or(UNKNOWN_SKILL_VERSION)
-                        .to_string();
+                        .map(str::to_string);
                     let desc = v
                         .get("description")
                         .and_then(|d| d.as_str())
@@ -110,6 +109,7 @@ impl SkillDetector {
                         Self::infer_scope(v.get("scope").and_then(|s| s.as_str()), base_monitored);
 
                     let is_git = GitService::is_git_repository(dir);
+                    let version = Self::resolved_local_version(dir, manifest_version);
                     let fm_dummy = FrontmatterMeta::default();
                     let remote_url = Self::resolve_remote_url(dir, &fm_dummy);
                     let branch_or_tag = GitService::get_current_ref_name(dir);
@@ -165,12 +165,12 @@ impl SkillDetector {
             let branch_or_tag = GitService::get_current_ref_name(dir);
             let compatibility = Self::infer_compatibility(dir, &scope, &fm);
 
-            // If git has tags, prefer git tag if no explicit version in SKILL.md
-            let version = fm
-                .version
-                .clone()
-                .or_else(|| GitService::get_head_tag(dir))
-                .unwrap_or_else(|| UNKNOWN_SKILL_VERSION.to_string());
+            // A checked-out SemVer tag is the source of truth for every
+            // Git-managed update. A nested manifest can legitimately retain
+            // its older per-skill version while the repository is at a newer
+            // release tag; treating that metadata as newer caused a false
+            // update to reappear after the next scan.
+            let version = Self::resolved_local_version(dir, fm.version.clone());
 
             return Some(SkillMetadata {
                 item_type: crate::models::skill::ManagedItemType::Skill,
@@ -209,12 +209,10 @@ impl SkillDetector {
                             .and_then(|n| n.as_str())
                             .unwrap_or(&folder_name)
                             .to_string();
-                        let raw_version = v
+                        let manifest_version = v
                             .get("version")
                             .and_then(|ver| ver.as_str())
-                            .unwrap_or(UNKNOWN_SKILL_VERSION)
-                            .to_string();
-                        let version = raw_version.trim_start_matches(['v', 'V']).to_string();
+                            .map(|version| version.trim_start_matches(['v', 'V']).to_string());
                         let desc = v
                             .get("description")
                             .and_then(|d| d.as_str())
@@ -228,6 +226,7 @@ impl SkillDetector {
                         let scope = Self::infer_scope(None, base_monitored);
 
                         let is_git = GitService::is_git_repository(dir);
+                        let version = Self::resolved_local_version(dir, manifest_version);
                         let fm_dummy = FrontmatterMeta::default();
                         let remote_url = Self::resolve_remote_url(dir, &fm_dummy);
                         let branch_or_tag = GitService::get_current_ref_name(dir);
@@ -488,6 +487,15 @@ impl SkillDetector {
 
         meta
     }
+
+    /// Keep scanning consistent with the updater: a local exact SemVer tag is
+    /// the installed release. Branch and non-Git installations still report
+    /// the version declared in their manifest.
+    fn resolved_local_version(dir: &Path, manifest_version: Option<String>) -> String {
+        GitService::get_head_tag(dir)
+            .or(manifest_version)
+            .unwrap_or_else(|| UNKNOWN_SKILL_VERSION.to_string())
+    }
 }
 
 #[derive(Default)]
@@ -618,6 +626,48 @@ metadata:
         assert_eq!(skills.len(), 1);
         assert_eq!(skills[0].name, "markdown-skill");
         assert_eq!(skills[0].current_version, "1.2.3");
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn exact_git_tag_overrides_stale_versions_in_every_supported_manifest() {
+        let root = fixture_root("tag-version-source");
+        let skills_root = root.join("skills");
+        write_file(
+            &skills_root.join("markdown/SKILL.md"),
+            "---\nname: tag-markdown\nversion: 1.0.0\n---\n# Skill\n",
+        );
+        write_file(
+            &skills_root.join("json/skill.json"),
+            r#"{"name":"tag-json","version":"1.0.0"}"#,
+        );
+        write_file(
+            &skills_root.join("package/package.json"),
+            r#"{"name":"tag-package","version":"1.0.0","skill":true}"#,
+        );
+
+        let repo = git2::Repository::init(&root).unwrap();
+        let signature = git2::Signature::now("SkillSync test", "tests@example.invalid").unwrap();
+        let mut index = repo.index().unwrap();
+        for relative in [
+            "skills/markdown/SKILL.md",
+            "skills/json/skill.json",
+            "skills/package/package.json",
+        ] {
+            index.add_path(Path::new(relative)).unwrap();
+        }
+        index.write().unwrap();
+        let tree = repo.find_tree(index.write_tree().unwrap()).unwrap();
+        let commit = repo
+            .commit(Some("HEAD"), &signature, &signature, "fixture", &tree, &[])
+            .unwrap();
+        let object = repo.find_object(commit, None).unwrap();
+        repo.tag_lightweight("v2.11.1", &object, false).unwrap();
+
+        let skills = SkillDetector::scan_directories(&[skills_root]);
+        assert_eq!(skills.len(), 3);
+        assert!(skills.iter().all(|skill| skill.current_version == "2.11.1"));
 
         let _ = fs::remove_dir_all(root);
     }

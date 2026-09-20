@@ -2,6 +2,14 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
 
+## [1.2.7] - 2026-09-20
+
+### Fixed
+
+- Treat an exact local SemVer Git tag as the installed version for `SKILL.md`, `skill.json` and explicit skill `package.json` manifests. A repository updated to a tag can no longer revert to an older, embedded manifest version on the next scan.
+- Select the highest SemVer tag when several tags point at the same checked-out commit.
+- Keep branch and non-Git installations manifest-based, so commit-tracked packages continue to use their correct update policy.
+
 ## [1.2.6] - 2026-09-18
 
 ### Fixed
@@ -97,3 +105,4 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 [1.1.1]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.1.1
 [1.1.2]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.1.2
 [1.2.6]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.2.6
+[1.2.7]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.2.7

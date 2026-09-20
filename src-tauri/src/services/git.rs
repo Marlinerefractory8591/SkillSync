@@ -347,19 +347,21 @@ impl GitService {
         let head_commit = head.peel_to_commit().ok()?;
         let head_id = head_commit.id();
 
-        let tags = repo.tag_names(None).ok()?;
-        for tag_name in tags.iter().flatten().flatten() {
-            let refname = format!("refs/tags/{}", tag_name);
-            if let Ok(reference) = repo.find_reference(&refname) {
-                if let Ok(commit) = reference.peel_to_commit() {
-                    if commit.id() == head_id {
-                        let clean = tag_name.trim_start_matches(['v', 'V']).to_string();
-                        return Some(clean);
-                    }
-                }
-            }
-        }
-        None
+        repo.tag_names(None)
+            .ok()?
+            .iter()
+            .flatten()
+            .flatten()
+            .filter_map(|tag_name| {
+                let version =
+                    semver::Version::parse(tag_name.trim_start_matches(['v', 'V'])).ok()?;
+                let refname = format!("refs/tags/{tag_name}");
+                let reference = repo.find_reference(&refname).ok()?;
+                let commit = reference.peel_to_commit().ok()?;
+                (commit.id() == head_id).then_some((version, tag_name.to_string()))
+            })
+            .max_by(|(left, _), (right, _)| left.cmp(right))
+            .map(|(_, tag_name)| tag_name.trim_start_matches(['v', 'V']).to_string())
     }
 
     pub fn fetch_and_checkout_tag(
