@@ -2,6 +2,13 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
 
+## [1.2.9] - 2026-09-20
+
+### Fixed
+
+- Resolve the Git checkout conflict created when a previous SkillSync update generated a local `SKILL.md` adapter for a portable package and a later upstream ref introduces its own tracked `SKILL.md`.
+- Remove only an untracked adapter that contains both the SkillSync provenance marker and its fixed adapter text, and only after the atomic backup has completed. User-authored and upstream-tracked manifests are never removed.
+
 ## [1.2.8] - 2026-09-20
 
 ### Added
@@ -119,3 +126,4 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 [1.2.6]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.2.6
 [1.2.7]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.2.7
 [1.2.8]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.2.8
+[1.2.9]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.2.9

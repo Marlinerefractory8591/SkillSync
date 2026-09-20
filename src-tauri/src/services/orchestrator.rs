@@ -200,6 +200,23 @@ impl UpdateOrchestrator {
                 resolved_version = Some(version);
             // A. If Git repo, perform fetch and checkout
             } else if operation.is_git {
+                // A portable package can need a tiny local SKILL.md adapter
+                // for discovery. If a later upstream release introduces its
+                // own tracked SKILL.md, Git correctly refuses to overwrite
+                // the untracked adapter. Remove only our unmistakably
+                // generated, untracked adapter after the snapshot exists;
+                // user-authored and upstream-tracked manifests stay intact.
+                for location in canonical_targets.iter().filter(|location| {
+                    GitService::repository_root(location).as_deref() == Some(target.as_path())
+                }) {
+                    if let Err(error) = Self::remove_generated_skill_adapter(location) {
+                        for (t, snap) in &snapshots {
+                            let _ = BackupService::restore_snapshot(t, &snap.backup_file_path);
+                        }
+                        return Err(error);
+                    }
+                }
+
                 let safe_legacy_skill_metadata = skill.item_type == ManagedItemType::Skill
                     && !GitService::is_worktree_clean(target)?
                     && GitService::has_only_skill_version_metadata_change(target)?;
@@ -692,6 +709,23 @@ impl UpdateOrchestrator {
 
         Ok(())
     }
+
+    fn remove_generated_skill_adapter(dir: &Path) -> Result<bool, SkillSyncError> {
+        let adapter_path = dir.join("SKILL.md");
+        if !adapter_path.is_file() || GitService::is_file_tracked(&adapter_path) {
+            return Ok(false);
+        }
+
+        let content = fs::read_to_string(&adapter_path)?;
+        let is_generated_adapter = content.contains("generated-by: SkillSync")
+            && content.contains("This local SkillSync adapter preserves discovery");
+        if !is_generated_adapter {
+            return Ok(false);
+        }
+
+        fs::remove_file(&adapter_path)?;
+        Ok(true)
+    }
 }
 
 #[cfg(test)]
@@ -912,6 +946,67 @@ mod tests {
         let adapter = fs::read_to_string(dir.join("SKILL.md")).unwrap();
         assert!(adapter.contains("generated-by: SkillSync"));
         assert!(adapter.contains("version: \"1.1.0\""));
+
+        // The next upstream release restores a real manifest. The adapter
+        // created above is intentionally untracked, so a normal Git checkout
+        // would reject overwriting it as a conflict without the recovery
+        // guard in the update transaction.
+        let repo = git2::Repository::open(&dir).unwrap();
+        fs::write(
+            &skill_md,
+            "---\nname: fixture\nmetadata:\n  version: \"1.2.0\"\n---\n# Upstream skill\n",
+        )
+        .unwrap();
+        let mut index = repo.index().unwrap();
+        index.add_path(Path::new("SKILL.md")).unwrap();
+        index.write().unwrap();
+        let tree = repo.find_tree(index.write_tree().unwrap()).unwrap();
+        let parent = repo.head().unwrap().peel_to_commit().unwrap();
+        let third = repo
+            .commit(
+                Some("HEAD"),
+                &signature,
+                &signature,
+                "restore upstream skill manifest",
+                &tree,
+                &[&parent],
+            )
+            .unwrap();
+        let third_object = repo.find_object(third, None).unwrap();
+        repo.tag_lightweight("v1.2.0", &third_object, false)
+            .unwrap();
+
+        // Restore the local generated adapter to reproduce the state left by
+        // the previous update, then request the newer tag.
+        let second_object = repo.find_object(second, None).unwrap();
+        repo.checkout_tree(&second_object, None).unwrap();
+        repo.set_head_detached(second).unwrap();
+        UpdateOrchestrator::materialize_package_skill_adapter(&dir, "fixture", "1.1.0").unwrap();
+        assert!(!GitService::is_file_tracked(&skill_md));
+
+        metadata.current_version = "1.1.0".to_string();
+        metadata.latest_version = Some("1.2.0".to_string());
+        let updated =
+            UpdateOrchestrator::update_skill_atomic(&metadata, Some("1.2.0".to_string()), false)
+                .await
+                .unwrap();
+
+        assert_eq!(updated.current_version, "1.2.0");
+        let checked_out_manifest = fs::read_to_string(&skill_md).unwrap();
+        assert!(checked_out_manifest.contains("# Upstream skill"));
+        assert!(!checked_out_manifest.contains("generated-by: SkillSync"));
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn preserves_a_user_owned_skill_manifest_during_adapter_cleanup() {
+        let dir = fixture_dir("user-manifest");
+        fs::create_dir_all(&dir).unwrap();
+        let skill_md = dir.join("SKILL.md");
+        fs::write(&skill_md, "---\nname: custom\n---\n# User content\n").unwrap();
+
+        assert!(!UpdateOrchestrator::remove_generated_skill_adapter(&dir).unwrap());
+        assert!(skill_md.exists());
         let _ = fs::remove_dir_all(dir);
     }
 

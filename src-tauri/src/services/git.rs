@@ -39,6 +39,29 @@ impl GitService {
         remote.url().ok().map(str::to_owned)
     }
 
+    /// Returns true only when `path` is present in the current Git index.
+    /// SkillSync uses this to distinguish a temporary local adapter from an
+    /// upstream-owned manifest before a checkout is allowed to replace it.
+    pub fn is_file_tracked(path: &Path) -> bool {
+        let repo = match Repository::discover(path) {
+            Ok(repo) => repo,
+            Err(_) => return false,
+        };
+        let workdir = match repo.workdir() {
+            Some(workdir) => workdir,
+            None => return false,
+        };
+        let relative = match path.strip_prefix(workdir) {
+            Ok(relative) => relative,
+            Err(_) => return false,
+        };
+
+        repo.index()
+            .ok()
+            .and_then(|index| index.get_path(relative, 0).map(|_| ()))
+            .is_some()
+    }
+
     pub fn get_current_ref_name(path: &Path) -> Option<String> {
         let repo = Repository::discover(path).ok()?;
         let head = repo.head().ok()?;
