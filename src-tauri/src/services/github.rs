@@ -11,28 +11,46 @@ pub struct GitHubReleaseInfo {
 pub struct GitHubService;
 
 impl GitHubService {
+    /// Converts an explicit GitHub repository address to the one canonical
+    /// format used by the scanner and updater. Only a repository root is
+    /// accepted: branches, file URLs and other hosts belong in their own
+    /// fields and must not silently become a tracking source.
+    pub fn normalize_github_repository_url(value: &str) -> Option<String> {
+        let value = value.trim();
+        if value.is_empty() || value.contains(['?', '#']) {
+            return None;
+        }
+
+        let path = if let Some(path) = value.strip_prefix("https://github.com/") {
+            path
+        } else if let Some(path) = value.strip_prefix("http://github.com/") {
+            path
+        } else {
+            value.strip_prefix("git@github.com:")?
+        };
+
+        let path = path.trim_end_matches('/').trim_end_matches(".git");
+        let mut parts = path.split('/');
+        let owner = parts.next()?;
+        let repo = parts.next()?;
+        if parts.next().is_some()
+            || owner.is_empty()
+            || repo.is_empty()
+            || !owner.chars().chain(repo.chars()).all(|character| {
+                character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.')
+            })
+        {
+            return None;
+        }
+
+        Some(format!("https://github.com/{owner}/{repo}"))
+    }
+
     pub fn parse_github_owner_repo(remote_url: &str) -> Option<(String, String)> {
-        let clean = remote_url.trim().trim_end_matches(".git");
-
-        // Format: git@github.com:owner/repo
-        if clean.starts_with("git@github.com:") {
-            let path = clean.trim_start_matches("git@github.com:");
-            let parts: Vec<&str> = path.split('/').collect();
-            if parts.len() == 2 {
-                return Some((parts[0].to_string(), parts[1].to_string()));
-            }
-        }
-
-        // Format: https://github.com/owner/repo
-        if let Some(pos) = clean.find("github.com/") {
-            let path = &clean[pos + "github.com/".len()..];
-            let parts: Vec<&str> = path.split('/').collect();
-            if parts.len() >= 2 {
-                return Some((parts[0].to_string(), parts[1].to_string()));
-            }
-        }
-
-        None
+        let normalized = Self::normalize_github_repository_url(remote_url)?;
+        let path = normalized.strip_prefix("https://github.com/")?;
+        let (owner, repo) = path.split_once('/')?;
+        Some((owner.to_string(), repo.to_string()))
     }
 
     pub async fn check_latest_version(
@@ -371,5 +389,28 @@ mod tests {
     fn unparseable_versions_never_create_a_false_update() {
         assert!(!GitHubService::is_newer_version("v1.9.6", "unknown"));
         assert!(!GitHubService::is_newer_version("release-next", "main"));
+    }
+
+    #[test]
+    fn normalizes_only_github_repository_roots() {
+        assert_eq!(
+            GitHubService::normalize_github_repository_url(
+                " https://github.com/PrefectHQ/fastmcp.git ",
+            ),
+            Some("https://github.com/PrefectHQ/fastmcp".to_string())
+        );
+        assert_eq!(
+            GitHubService::normalize_github_repository_url("git@github.com:PrefectHQ/fastmcp.git"),
+            Some("https://github.com/PrefectHQ/fastmcp".to_string())
+        );
+        assert!(GitHubService::normalize_github_repository_url(
+            "https://github.com/PrefectHQ/fastmcp/tree/main"
+        )
+        .is_none());
+        assert!(GitHubService::normalize_github_repository_url(
+            "https://example.com/PrefectHQ/fastmcp"
+        )
+        .is_none());
+        assert!(GitHubService::normalize_github_repository_url("main").is_none());
     }
 }

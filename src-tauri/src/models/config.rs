@@ -43,6 +43,7 @@ impl Default for AppConfig {
                 backup_retention_days: 14,
                 allow_prerelease: false,
                 branch_overrides: std::collections::HashMap::new(),
+                repository_overrides: std::collections::HashMap::new(),
             },
             notifications: NotificationsConfig {
                 enabled: true,
@@ -268,7 +269,7 @@ mod tests {
     }
 
     #[test]
-    fn loads_existing_settings_without_a_tray_or_branch_override_field() {
+    fn loads_existing_settings_without_a_tray_or_tracking_override_field() {
         let mut legacy = serde_json::to_value(AppConfig::default()).unwrap();
         legacy["general"]
             .as_object_mut()
@@ -278,10 +279,15 @@ mod tests {
             .as_object_mut()
             .unwrap()
             .remove("branchOverrides");
+        legacy["updates"]
+            .as_object_mut()
+            .unwrap()
+            .remove("repositoryOverrides");
 
         let loaded: AppConfig = serde_json::from_value(legacy).unwrap();
         assert!(loaded.general.show_tray_icon);
         assert!(loaded.updates.branch_overrides.is_empty());
+        assert!(loaded.updates.repository_overrides.is_empty());
     }
 }
 
@@ -297,6 +303,11 @@ pub struct UpdatesConfig {
     /// precedence over the branch detected from the local Git worktree.
     #[serde(default)]
     pub branch_overrides: std::collections::HashMap<String, String>,
+    /// Explicit GitHub repositories for portable/local resources without a
+    /// discoverable Git remote. Stored separately from branches so a URL can
+    /// never be mistaken for a branch name.
+    #[serde(default)]
+    pub repository_overrides: std::collections::HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -63,6 +63,11 @@ fn discover_skills() -> Vec<SkillMetadata> {
     }
 
     for skill in &mut skills {
+        if let Some(repository) = config.updates.repository_overrides.get(&skill.id) {
+            if let Some(repository) = GitHubService::normalize_github_repository_url(repository) {
+                skill.remote_url = Some(repository);
+            }
+        }
         if let Some(branch) = config.updates.branch_overrides.get(&skill.id) {
             let branch = branch.trim();
             if GitService::is_valid_branch_name(branch) {
@@ -297,6 +302,26 @@ pub fn set_branch_override(skill_id: String, branch: Option<String>) -> Result<(
         }
         _ => {
             config.updates.branch_overrides.remove(&skill_id);
+        }
+    }
+    ConfigService::save_config(&config).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub fn set_repository_override(skill_id: String, repository: Option<String>) -> Result<(), String> {
+    let mut config = ConfigService::load_config();
+    match repository.map(|value| value.trim().to_string()) {
+        Some(value) if !value.is_empty() => {
+            let normalized = GitHubService::normalize_github_repository_url(&value).ok_or_else(|| {
+                "Nieprawidłowy adres GitHub. Wpisz adres główny repozytorium, np. https://github.com/PrefectHQ/fastmcp.".to_string()
+            })?;
+            config
+                .updates
+                .repository_overrides
+                .insert(skill_id, normalized);
+        }
+        _ => {
+            config.updates.repository_overrides.remove(&skill_id);
         }
     }
     ConfigService::save_config(&config).map_err(|error| error.to_string())

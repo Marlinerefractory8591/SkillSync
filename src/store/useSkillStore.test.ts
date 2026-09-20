@@ -4,6 +4,10 @@ import type { SkillMetadata } from "../types/skillsync";
 vi.mock("../lib/ipc", () => ({
   api: {
     updateSingleSkill: vi.fn(),
+    scanSkills: vi.fn(),
+    checkGitHubUpdate: vi.fn(),
+    setBranchOverride: vi.fn(),
+    setRepositoryOverride: vi.fn(),
     checkAppUpdate: vi.fn(),
     installAppUpdate: vi.fn(),
   },
@@ -35,6 +39,10 @@ const updateableSkill: SkillMetadata = {
 describe("batchUpdateAll", () => {
   beforeEach(() => {
     vi.mocked(api.updateSingleSkill).mockReset();
+    vi.mocked(api.scanSkills).mockReset();
+    vi.mocked(api.checkGitHubUpdate).mockReset();
+    vi.mocked(api.setBranchOverride).mockReset();
+    vi.mocked(api.setRepositoryOverride).mockReset();
     vi.mocked(api.checkAppUpdate).mockReset();
     vi.mocked(api.installAppUpdate).mockReset();
     useSkillStore.setState({
@@ -118,5 +126,31 @@ describe("batchUpdateAll", () => {
     expect(state.selectedSkill?.status).toBe("error");
     expect(state.error).toContain("niezacommitowane zmiany");
     expect(state.pendingDirtyUpdate?.skillId).toBe("skill-ui-ux-pro-max");
+  });
+
+  it("refreshes the active skill and checks GitHub immediately after saving a repository", async () => {
+    const tracked = {
+      ...updateableSkill,
+      remoteUrl: "https://github.com/PrefectHQ/fastmcp",
+      status: "checking" as const,
+    };
+    const checked = {
+      ...tracked,
+      latestVersion: "2.0.0",
+      status: "up_to_date" as const,
+    };
+    vi.mocked(api.scanSkills).mockResolvedValueOnce([tracked]);
+    vi.mocked(api.checkGitHubUpdate).mockResolvedValueOnce(checked);
+
+    await useSkillStore
+      .getState()
+      .setRepositoryOverride(updateableSkill.id, tracked.remoteUrl);
+
+    expect(api.setRepositoryOverride).toHaveBeenCalledWith(
+      updateableSkill.id,
+      tracked.remoteUrl,
+    );
+    expect(api.checkGitHubUpdate).toHaveBeenCalledWith(updateableSkill.id);
+    expect(useSkillStore.getState().selectedSkill).toEqual(checked);
   });
 });

@@ -179,6 +179,7 @@ const DEFAULT_CONFIG: AppConfig = {
     backupRetentionDays: 14,
     allowPrerelease: false,
     branchOverrides: {},
+    repositoryOverrides: {},
   },
   notifications: {
     enabled: true,
@@ -349,6 +350,16 @@ export const api = {
     if (isTauriEnvironment()) {
       const { invoke } = await import("@tauri-apps/api/core");
       await invoke("set_branch_override", { skillId, branch });
+    }
+  },
+
+  async setRepositoryOverride(
+    skillId: string,
+    repository: string | null,
+  ): Promise<void> {
+    if (isTauriEnvironment()) {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("set_repository_override", { skillId, repository });
     }
   },
 

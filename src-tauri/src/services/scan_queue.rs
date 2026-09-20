@@ -72,12 +72,14 @@ pub(crate) async fn refresh_upstream(mut skill: SkillMetadata) -> SkillMetadata 
     // A manually selected branch is an explicit opt-out from release tags.
     // Automatically detected branches must never have that effect: a
     // repository publishing SemVer tags is tracked by its newest tag.
-    if let Some(branch) = skill
-        .branch_override
-        .clone()
-        .filter(|branch| !branch.trim().is_empty())
-    {
-        return refresh_branch_upstream(skill, branch).await;
+    if skill.is_git_repo {
+        if let Some(branch) = skill
+            .branch_override
+            .clone()
+            .filter(|branch| !branch.trim().is_empty())
+        {
+            return refresh_branch_upstream(skill, branch).await;
+        }
     }
 
     if skill.is_git_repo {

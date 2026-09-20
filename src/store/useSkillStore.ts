@@ -76,6 +76,10 @@ interface SkillState {
   checkGitHubUpdate: (skillId: string) => Promise<void>;
   checkoutCustomVersion: (skillId: string, targetRef: string) => Promise<void>;
   setBranchOverride: (skillId: string, branch: string | null) => Promise<void>;
+  setRepositoryOverride: (
+    skillId: string,
+    repository: string | null,
+  ) => Promise<void>;
   batchUpdateAll: () => Promise<void>;
   rollbackSkill: (skillId: string, snapshotId?: string) => Promise<void>;
   setTheme: (theme: "dark" | "light") => void;
@@ -133,6 +137,11 @@ export const useSkillStore = create<SkillState>()(
         const skills = await api.scanSkills(forceRefresh);
         set((state) => {
           state.skills = skills;
+          if (state.selectedSkill) {
+            state.selectedSkill =
+              skills.find((skill) => skill.id === state.selectedSkill?.id) ??
+              state.selectedSkill;
+          }
           state.queuedChecks = skills.filter(
             (skill) => skill.status === "checking",
           ).length;
@@ -346,11 +355,38 @@ export const useSkillStore = create<SkillState>()(
       try {
         await api.setBranchOverride(skillId, branch);
         await get().fetchSkills(true);
+        if (
+          get().skills.some((skill) => skill.id === skillId && skill.remoteUrl)
+        ) {
+          await get().checkGitHubUpdate(skillId);
+        }
       } catch (err: unknown) {
         set((state) => {
           state.error = formatError(
             err,
             "Nie udało się zapisać gałęzi śledzenia",
+          );
+        });
+      }
+    },
+
+    setRepositoryOverride: async (
+      skillId: string,
+      repository: string | null,
+    ) => {
+      try {
+        await api.setRepositoryOverride(skillId, repository);
+        await get().fetchSkills(true);
+        if (
+          get().skills.some((skill) => skill.id === skillId && skill.remoteUrl)
+        ) {
+          await get().checkGitHubUpdate(skillId);
+        }
+      } catch (err: unknown) {
+        set((state) => {
+          state.error = formatError(
+            err,
+            "Nie udało się zapisać repozytorium GitHub do śledzenia",
           );
         });
       }

@@ -43,6 +43,7 @@ export const SkillDetailModal: React.FC = () => {
     checkGitHubUpdate,
     checkoutCustomVersion,
     setBranchOverride,
+    setRepositoryOverride,
   } = useSkillStore();
 
   const [copied, setCopied] = useState(false);
@@ -53,6 +54,7 @@ export const SkillDetailModal: React.FC = () => {
   const [customTagInput, setCustomTagInput] = useState("");
   const [isInstallingCustom, setIsInstallingCustom] = useState(false);
   const [branchInput, setBranchInput] = useState("");
+  const [repositoryInput, setRepositoryInput] = useState("");
 
   useEffect(() => {
     if (selectedSkill) {
@@ -66,6 +68,7 @@ export const SkillDetailModal: React.FC = () => {
       setBranchInput(
         selectedSkill.branchOverride ?? selectedSkill.detectedBranch ?? "",
       );
+      setRepositoryInput(selectedSkill.remoteUrl ?? "");
     }
   }, [selectedSkill]);
 
@@ -93,6 +96,13 @@ export const SkillDetailModal: React.FC = () => {
 
   const handleSaveBranch = async () => {
     await setBranchOverride(selectedSkill.id, branchInput.trim() || null);
+  };
+
+  const handleSaveRepository = async () => {
+    await setRepositoryOverride(
+      selectedSkill.id,
+      repositoryInput.trim() || null,
+    );
   };
 
   const handleRollback = async () => {
@@ -282,6 +292,31 @@ export const SkillDetailModal: React.FC = () => {
                     <span className="text-foreground font-mono">
                       {selectedSkill.branchOrTag || "HEAD"}
                     </span>
+                  </div>
+                  <div className="mt-3 border-t border-border/60 pt-3">
+                    <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Repozytorium GitHub do śledzenia
+                    </label>
+                    <div className="flex gap-1.5">
+                      <input
+                        value={repositoryInput}
+                        onChange={(event) =>
+                          setRepositoryInput(event.target.value)
+                        }
+                        placeholder="https://github.com/PrefectHQ/fastmcp"
+                        className="min-w-0 flex-1 rounded border border-border bg-background px-2 py-1.5 font-mono text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      />
+                      <button
+                        onClick={handleSaveRepository}
+                        className="rounded border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-semibold text-primary transition-colors hover:bg-primary/20"
+                      >
+                        Zapisz
+                      </button>
+                    </div>
+                    <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+                      Dla lokalnych skillów bez Git. Wpisz główny adres
+                      repozytorium; pusta wartość przywraca auto-wykrywanie.
+                    </p>
                   </div>
                   <div className="mt-3 border-t border-border/60 pt-3">
                     <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">

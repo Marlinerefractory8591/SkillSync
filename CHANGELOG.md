@@ -2,6 +2,18 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
 
+## [1.2.8] - 2026-09-20
+
+### Added
+
+- Add a separate **GitHub repository to track** setting for skills that are portable directories or symlinks and therefore have no local Git remote. It accepts canonical HTTPS and SSH GitHub repository roots and safely persists the choice per resource.
+
+### Fixed
+
+- Refresh the open detail view after saving a tracking repository or branch. The **Check GitHub** action is now visible immediately and a verification runs automatically.
+- Never send a local non-Git skill through Git branch commands when it has a manual branch. It now uses its configured GitHub repository for safe release/tag verification instead of failing with a local Git error.
+- Reject GitHub tree, file, query and fragment URLs in the repository field, preventing a malformed tracking source from being saved.
+
 ## [1.2.7] - 2026-09-20
 
 ### Fixed
@@ -106,3 +118,4 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 [1.1.2]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.1.2
 [1.2.6]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.2.6
 [1.2.7]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.2.7
+[1.2.8]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.2.8

@@ -84,6 +84,7 @@ export interface AppConfig {
     backupRetentionDays: number;
     allowPrerelease: boolean;
     branchOverrides: Record<string, string>;
+    repositoryOverrides: Record<string, string>;
   };
   notifications: {
     enabled: boolean;
