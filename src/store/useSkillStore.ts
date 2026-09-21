@@ -50,6 +50,7 @@ interface SkillState {
   appUpdateError: string | null;
   appUpdateProgress: AppUpdateProgress;
   pendingDirtyUpdate: DirtyUpdateConfirmation | null;
+  deletingSkillId: string | null;
   batchProgress: {
     total: number;
     completed: number;
@@ -80,6 +81,7 @@ interface SkillState {
     skillId: string,
     repository: string | null,
   ) => Promise<void>;
+  removeSkill: (skillId: string, locations: string[]) => Promise<void>;
   batchUpdateAll: () => Promise<void>;
   rollbackSkill: (skillId: string, snapshotId?: string) => Promise<void>;
   setTheme: (theme: "dark" | "light") => void;
@@ -123,6 +125,7 @@ export const useSkillStore = create<SkillState>()(
       contentLength: null,
     },
     pendingDirtyUpdate: null,
+    deletingSkillId: null,
     batchProgress: {
       total: 0,
       completed: 0,
@@ -353,8 +356,26 @@ export const useSkillStore = create<SkillState>()(
 
     setBranchOverride: async (skillId: string, branch: string | null) => {
       try {
-        await api.setBranchOverride(skillId, branch);
-        await get().fetchSkills(true);
+        const normalizedBranch = branch?.trim() || null;
+        await api.setBranchOverride(skillId, normalizedBranch);
+
+        // The counter and the "Without branch" view must react to a manual
+        // assignment immediately, rather than wait for a full rescan or for a
+        // remote request to finish. The following remote check replaces this
+        // optimistic value with the authoritative backend result.
+        set((state) => {
+          const updateBranch = (skill: SkillMetadata) => {
+            if (skill.id !== skillId) return;
+            skill.branchOverride = normalizedBranch;
+            if (normalizedBranch) skill.branchOrTag = normalizedBranch;
+          };
+          state.skills.forEach(updateBranch);
+          if (state.selectedSkill) updateBranch(state.selectedSkill);
+        });
+
+        // Clearing an override needs a scan to restore the branch that Git
+        // detects automatically. Assigning one has already updated the UI.
+        if (!normalizedBranch) await get().fetchSkills(true);
         if (
           get().skills.some((skill) => skill.id === skillId && skill.remoteUrl)
         ) {
@@ -366,6 +387,29 @@ export const useSkillStore = create<SkillState>()(
             err,
             "Nie udało się zapisać gałęzi śledzenia",
           );
+        });
+      }
+    },
+
+    removeSkill: async (skillId: string, locations: string[]) => {
+      if (locations.length === 0) return;
+      set((state) => {
+        state.deletingSkillId = skillId;
+        state.error = null;
+      });
+      try {
+        await api.removeSkill(skillId, locations);
+        await get().fetchSkills(true);
+        if (!get().skills.some((skill) => skill.id === skillId)) {
+          get().closeDetail();
+        }
+      } catch (err: unknown) {
+        set((state) => {
+          state.error = formatError(err, "Nie udało się usunąć skillu");
+        });
+      } finally {
+        set((state) => {
+          state.deletingSkillId = null;
         });
       }
     },

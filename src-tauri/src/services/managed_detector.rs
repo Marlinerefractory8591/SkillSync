@@ -51,17 +51,12 @@ impl ManagedItemDetector {
                 };
                 let candidate = Self::metadata_for(path, monitored, item_type.clone(), manifest);
                 let key = candidate.id.clone();
-                let canonical = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-
                 if let Some(existing) = items.get_mut(&key) {
                     Self::add_location(existing, path);
-                    Self::add_location(existing, &canonical);
                     if existing.remote_url.is_none() {
                         existing.remote_url = candidate.remote_url;
                     }
                 } else {
-                    let mut candidate = candidate;
-                    Self::add_location(&mut candidate, &canonical);
                     items.insert(key, candidate);
                 }
             }

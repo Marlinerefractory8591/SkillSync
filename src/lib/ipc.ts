@@ -363,6 +363,14 @@ export const api = {
     }
   },
 
+  async removeSkill(skillId: string, locations: string[]): Promise<string[]> {
+    if (isTauriEnvironment()) {
+      const { invoke } = await import("@tauri-apps/api/core");
+      return await invoke<string[]>("remove_skill", { skillId, locations });
+    }
+    return locations;
+  },
+
   async checkAppUpdate(): Promise<AppUpdateInfo> {
     if (isTauriEnvironment()) {
       const { getVersion } = await import("@tauri-apps/api/app");

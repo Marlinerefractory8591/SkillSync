@@ -2,6 +2,18 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-09-21
+
+### Added
+
+- Add a **Remove** action for each declared installation location and a **Remove everywhere** action for the resource as a whole. The application confirms the action, validates every selected path, creates a recovery snapshot for real directories and never follows a directory symlink while removing it.
+
+### Fixed
+
+- Refresh the **Bez gałęzi** counter and filter immediately after a manual branch is saved. Detached HEAD hashes and Git tags are no longer incorrectly treated as tracking branches.
+- Stop discovery below a directory that is already a valid skill manifest. Examples, templates and nested `skills/` folders can no longer produce surplus skill cards; a manifest-free collection still exposes each of its independent child skills.
+- Report each physical installation once instead of adding an extra canonical-path entry for every symlinked location.
+
 ## [1.2.9] - 2026-09-20
 
 ### Fixed
@@ -127,3 +139,4 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 [1.2.7]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.2.7
 [1.2.8]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.2.8
 [1.2.9]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.2.9
+[1.3.0]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.3.0

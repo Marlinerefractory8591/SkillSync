@@ -13,6 +13,7 @@ import {
   Globe,
   Check,
 } from "lucide-react";
+import { hasTrackingBranch } from "../lib/branch-tracking";
 
 export const Navbar: React.FC = () => {
   const { t, language, setLanguage } = useTranslation();
@@ -44,9 +45,7 @@ export const Navbar: React.FC = () => {
   const totalSkills = skills.length;
   const outdatedCount = skills.filter((s) => s.updateAvailable).length;
   const missingBranchCount = skills.filter(
-    (skill) =>
-      Boolean(skill.remoteUrl) &&
-      !(skill.branchOverride ?? skill.detectedBranch ?? skill.branchOrTag),
+    (skill) => Boolean(skill.remoteUrl) && !hasTrackingBranch(skill),
   ).length;
 
   // Keyboard shortcut listener

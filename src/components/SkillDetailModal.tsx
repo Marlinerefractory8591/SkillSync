@@ -20,6 +20,7 @@ import {
   RefreshCw,
   Download,
   CheckCircle2,
+  Trash2,
 } from "lucide-react";
 
 const GithubIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
@@ -44,6 +45,8 @@ export const SkillDetailModal: React.FC = () => {
     checkoutCustomVersion,
     setBranchOverride,
     setRepositoryOverride,
+    removeSkill,
+    deletingSkillId,
   } = useSkillStore();
 
   const [copied, setCopied] = useState(false);
@@ -126,6 +129,28 @@ export const SkillDetailModal: React.FC = () => {
     if (selectedSkill.remoteUrl) {
       api.openUrl(selectedSkill.remoteUrl);
     }
+  };
+
+  const installedLocations =
+    selectedSkill.installedLocations &&
+    selectedSkill.installedLocations.length > 0
+      ? selectedSkill.installedLocations
+      : [selectedSkill.path];
+  const isDeleting = deletingSkillId === selectedSkill.id;
+
+  const handleDeleteLocations = async (locations: string[]) => {
+    const allLocations = locations.length === installedLocations.length;
+    const targetLabel = allLocations
+      ? "we wszystkich lokalizacjach"
+      : "w wybranej lokalizacji";
+    if (
+      !confirm(
+        `Usunąć „${selectedSkill.name}” ${targetLabel}? Przed usunięciem katalogów SkillSync utworzy migawkę bezpieczeństwa.`,
+      )
+    ) {
+      return;
+    }
+    await removeSkill(selectedSkill.id, locations);
   };
 
   return (
@@ -411,42 +436,50 @@ export const SkillDetailModal: React.FC = () => {
               </div>
 
               {/* Installed Locations Multi-Sync Section */}
-              {selectedSkill.installedLocations &&
-                selectedSkill.installedLocations.length > 0 && (
-                  <div className="p-4 rounded-xl border border-border bg-card/50 sm:col-span-2">
-                    <div className="flex items-center justify-between text-xs font-semibold text-foreground mb-2">
-                      <div className="flex items-center gap-2">
-                        <Folder className="w-4 h-4 text-primary" />
-                        <span>
-                          {t.installedLocations} (
-                          {selectedSkill.installedLocations.length})
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-muted-foreground font-mono">
-                        Symlink &amp; Multi-Directory Sync
+              {installedLocations.length > 0 && (
+                <div className="p-4 rounded-xl border border-border bg-card/50 sm:col-span-2">
+                  <div className="flex items-center justify-between text-xs font-semibold text-foreground mb-2">
+                    <div className="flex items-center gap-2">
+                      <Folder className="w-4 h-4 text-primary" />
+                      <span>
+                        {t.installedLocations} ({installedLocations.length})
                       </span>
                     </div>
-                    <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                      {selectedSkill.installedLocations.map((loc, idx) => (
-                        <div
-                          key={idx}
-                          className="flex items-center justify-between p-2 rounded-lg bg-background/60 border border-border/60 text-xs font-mono"
+                    <span className="text-[10px] text-muted-foreground font-mono">
+                      Symlink &amp; Multi-Directory Sync
+                    </span>
+                  </div>
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                    {installedLocations.map((loc, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-2 rounded-lg bg-background/60 border border-border/60 text-xs font-mono"
+                      >
+                        <span
+                          className="text-foreground/90 truncate mr-2 text-[11px]"
+                          title={loc}
                         >
-                          <span
-                            className="text-foreground/90 truncate mr-2 text-[11px]"
-                            title={loc}
-                          >
-                            {loc}
-                          </span>
-                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0 flex items-center gap-1 font-sans">
+                          {loc}
+                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0 font-sans">
+                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
                             <Check className="w-2.5 h-2.5" />
                             Aktywny
                           </span>
+                          <button
+                            onClick={() => handleDeleteLocations([loc])}
+                            disabled={isDeleting}
+                            className="rounded border border-destructive/40 px-1.5 py-0.5 text-[10px] font-semibold text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+                            title="Usuń tylko tę lokalizację"
+                          >
+                            Usuń
+                          </button>
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
-                )}
+                </div>
+              )}
             </div>
 
             {/* Manual Tag / Version Checkout Section */}
@@ -559,6 +592,19 @@ export const SkillDetailModal: React.FC = () => {
             </button>
 
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleDeleteLocations(installedLocations)}
+                disabled={isDeleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-destructive/40 text-destructive hover:bg-destructive/10 transition-all disabled:opacity-50"
+                title="Usuń skill ze wszystkich wskazanych lokalizacji"
+              >
+                {isDeleting ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" />
+                )}
+                Usuń {installedLocations.length > 1 ? "wszędzie" : "skill"}
+              </button>
               <button
                 onClick={closeDetail}
                 className="px-3.5 py-1.5 text-xs font-medium rounded-lg border border-border text-foreground hover:bg-muted transition-all"

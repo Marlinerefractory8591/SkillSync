@@ -74,6 +74,7 @@ pub fn run() {
             check_github_update,
             set_branch_override,
             set_repository_override,
+            remove_skill,
             update_single_skill,
             checkout_custom_version,
             batch_update_skills,

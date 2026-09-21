@@ -1,4 +1,4 @@
-use crate::models::skill::{BackupSnapshot, SkillMetadata, SkillStatus};
+use crate::models::skill::{BackupSnapshot, ManagedItemType, SkillMetadata, SkillStatus};
 use crate::services::backup::BackupService;
 use crate::services::config::ConfigService;
 use crate::services::detector::SkillDetector;
@@ -6,8 +6,12 @@ use crate::services::detector::UNKNOWN_SKILL_VERSION;
 use crate::services::git::GitService;
 use crate::services::github::GitHubService;
 use crate::services::managed_detector::ManagedItemDetector;
+use crate::services::managed_manifest::ManagedManifest;
+use crate::services::manifest::SkillManifest;
 use crate::services::orchestrator::UpdateOrchestrator;
 use crate::services::scan_queue::ScanQueue;
+use std::fs;
+use std::path::{Path, PathBuf};
 use tauri::State;
 
 pub(crate) fn apply_github_release(
@@ -78,6 +82,100 @@ fn discover_skills() -> Vec<SkillMetadata> {
     }
 
     skills
+}
+
+fn available_locations(skill: &SkillMetadata) -> Vec<PathBuf> {
+    let mut locations = skill.installed_locations.clone();
+    if !locations.contains(&skill.path) {
+        locations.push(skill.path.clone());
+    }
+    locations
+}
+
+fn validate_removal_targets(
+    skill: &SkillMetadata,
+    requested: &[PathBuf],
+    all_skills: &[SkillMetadata],
+) -> Result<Vec<PathBuf>, String> {
+    if requested.is_empty() {
+        return Err("Wybierz co najmniej jedną lokalizację do usunięcia.".to_string());
+    }
+
+    let available = available_locations(skill);
+    let mut targets = Vec::new();
+    for location in requested {
+        if !available.contains(location) {
+            return Err(format!(
+                "Odmowa usunięcia nieznanej lokalizacji: {}",
+                location.display()
+            ));
+        }
+        if !targets.contains(location) {
+            targets.push(location.clone());
+        }
+    }
+
+    for target in &targets {
+        if !target.is_dir() && !target.is_symlink() {
+            return Err(format!(
+                "Lokalizacja skillu już nie istnieje: {}",
+                target.display()
+            ));
+        }
+        let manifest_result = match skill.item_type {
+            ManagedItemType::Skill => SkillManifest::validate(target).map(|_| ()),
+            ManagedItemType::Mcp | ManagedItemType::Plugin => {
+                ManagedManifest::validate(&skill.item_type, target).map(|_| ())
+            }
+        };
+        manifest_result.map_err(|reason| {
+            format!(
+                "Odmowa usunięcia {}: manifest nie jest już poprawny ({reason})",
+                target.display()
+            )
+        })?;
+
+        // A stale UI entry must never turn a single-skill deletion into
+        // deletion of another item nested below the same monitored directory.
+        if let Some(other) = all_skills.iter().find(|other| {
+            other.id != skill.id
+                && available_locations(other)
+                    .iter()
+                    .any(|path| path != target && path.starts_with(target))
+        }) {
+            return Err(format!(
+                "Nie można usunąć {}: zawiera osobny wykryty zasób '{}'. Usuń go oddzielnie.",
+                target.display(),
+                other.name
+            ));
+        }
+    }
+
+    Ok(targets)
+}
+
+fn remove_location(target: &Path) -> Result<(), String> {
+    let metadata = fs::symlink_metadata(target).map_err(|error| {
+        format!(
+            "Nie można odczytać lokalizacji {}: {error}",
+            target.display()
+        )
+    })?;
+
+    // Removing a directory symlink must remove the link only. Following it
+    // would silently delete another declared installation.
+    if metadata.file_type().is_symlink() {
+        fs::remove_file(target)
+            .map_err(|error| format!("Nie można usunąć dowiązania {}: {error}", target.display()))
+    } else if metadata.is_dir() {
+        fs::remove_dir_all(target)
+            .map_err(|error| format!("Nie można usunąć {}: {error}", target.display()))
+    } else {
+        Err(format!(
+            "Lokalizacja nie jest katalogiem: {}",
+            target.display()
+        ))
+    }
 }
 
 #[tauri::command]
@@ -264,6 +362,48 @@ pub async fn batch_update_skills(skill_ids: Vec<String>) -> Result<serde_json::V
     }))
 }
 
+/// Removes only locations selected by the user from the freshly discovered
+/// item. Each real directory receives a recovery snapshot before any deletion;
+/// a directory symlink is unlinked without touching its target.
+#[tauri::command]
+pub async fn remove_skill(
+    skill_id: String,
+    locations: Vec<PathBuf>,
+) -> Result<Vec<String>, String> {
+    let all_skills = discover_skills();
+    let skill = all_skills
+        .iter()
+        .find(|skill| skill.id == skill_id)
+        .ok_or_else(|| format!("Nie znaleziono skillu o identyfikatorze {skill_id}"))?;
+    let targets = validate_removal_targets(skill, &locations, &all_skills)?;
+
+    // Validate and snapshot every target first, so a failed preflight never
+    // leaves a partly deleted multi-location installation.
+    for target in &targets {
+        let metadata = fs::symlink_metadata(target)
+            .map_err(|error| format!("Nie można odczytać {}: {error}", target.display()))?;
+        if !metadata.file_type().is_symlink() {
+            BackupService::create_snapshot(target, &skill.id, &skill.current_version).map_err(
+                |error| {
+                    format!(
+                        "Nie udało się utworzyć migawki przed usunięciem {}: {error}",
+                        target.display()
+                    )
+                },
+            )?;
+        }
+    }
+
+    for target in &targets {
+        remove_location(target)?;
+    }
+
+    Ok(targets
+        .iter()
+        .map(|target| target.to_string_lossy().to_string())
+        .collect())
+}
+
 #[tauri::command]
 pub async fn rollback_skill(skill_id: String, snapshot_id: Option<String>) -> Result<bool, String> {
     let all_skills = discover_skills();
@@ -370,6 +510,106 @@ pub async fn open_url(url: String) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn deletion_fixture(path: PathBuf, id: &str) -> SkillMetadata {
+        SkillMetadata {
+            item_type: ManagedItemType::Skill,
+            id: id.to_string(),
+            name: id.to_string(),
+            description: "Fixture".to_string(),
+            current_version: "1.0.0".to_string(),
+            latest_version: None,
+            author: "Tester".to_string(),
+            path: path.clone(),
+            is_git_repo: false,
+            remote_url: None,
+            branch_or_tag: None,
+            detected_branch: None,
+            branch_override: None,
+            agent_scope: crate::models::skill::AgentScope::Global,
+            status: SkillStatus::UpToDate,
+            update_available: false,
+            changelog: None,
+            dependencies: vec![],
+            permissions: vec![],
+            last_checked: chrono::Utc::now(),
+            compatibility: None,
+            update_compatibility: None,
+            installed_locations: vec![path],
+        }
+    }
+
+    #[test]
+    fn removal_rejects_a_path_that_was_not_discovered_for_the_skill() {
+        let root = std::env::temp_dir().join(format!(
+            "skillsync-removal-reject-{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        let skill_path = root.join("skill");
+        let unrelated = root.join("unrelated");
+        fs::create_dir_all(&skill_path).unwrap();
+        fs::create_dir_all(&unrelated).unwrap();
+        fs::write(skill_path.join("SKILL.md"), "# Skill").unwrap();
+        let skill = deletion_fixture(skill_path, "skill-fixture");
+
+        let error = validate_removal_targets(&skill, &[unrelated], std::slice::from_ref(&skill))
+            .unwrap_err();
+        assert!(error.contains("nieznanej lokalizacji"));
+        assert!(skill.path.exists());
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn removal_deletes_the_selected_directory_only() {
+        let root = std::env::temp_dir().join(format!(
+            "skillsync-removal-selected-{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        let first = root.join("claude/fixture");
+        let second = root.join("codex/fixture");
+        for location in [&first, &second] {
+            fs::create_dir_all(location).unwrap();
+            fs::write(location.join("SKILL.md"), "# Skill").unwrap();
+        }
+        let mut skill = deletion_fixture(first.clone(), "skill-fixture");
+        skill.installed_locations.push(second.clone());
+        let targets = validate_removal_targets(
+            &skill,
+            std::slice::from_ref(&first),
+            std::slice::from_ref(&skill),
+        )
+        .unwrap();
+
+        remove_location(&targets[0]).unwrap();
+        assert!(!first.exists());
+        assert!(second.exists());
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn removal_unlinks_a_directory_symlink_without_deleting_its_target() {
+        use std::os::unix::fs::symlink;
+
+        let root = std::env::temp_dir().join(format!(
+            "skillsync-removal-symlink-{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        let target = root.join("central/fixture");
+        let link = root.join("claude/fixture");
+        fs::create_dir_all(&target).unwrap();
+        fs::create_dir_all(link.parent().unwrap()).unwrap();
+        fs::write(target.join("SKILL.md"), "# Skill").unwrap();
+        symlink(&target, &link).unwrap();
+
+        remove_location(&link).unwrap();
+        assert!(!link.exists());
+        assert!(target.exists());
+
+        let _ = fs::remove_dir_all(root);
+    }
 
     #[test]
     fn test_update_check_uses_semver_ordering() {

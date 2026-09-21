@@ -8,6 +8,7 @@ vi.mock("../lib/ipc", () => ({
     checkGitHubUpdate: vi.fn(),
     setBranchOverride: vi.fn(),
     setRepositoryOverride: vi.fn(),
+    removeSkill: vi.fn(),
     checkAppUpdate: vi.fn(),
     installAppUpdate: vi.fn(),
   },
@@ -43,6 +44,7 @@ describe("batchUpdateAll", () => {
     vi.mocked(api.checkGitHubUpdate).mockReset();
     vi.mocked(api.setBranchOverride).mockReset();
     vi.mocked(api.setRepositoryOverride).mockReset();
+    vi.mocked(api.removeSkill).mockReset();
     vi.mocked(api.checkAppUpdate).mockReset();
     vi.mocked(api.installAppUpdate).mockReset();
     useSkillStore.setState({
@@ -152,5 +154,50 @@ describe("batchUpdateAll", () => {
     );
     expect(api.checkGitHubUpdate).toHaveBeenCalledWith(updateableSkill.id);
     expect(useSkillStore.getState().selectedSkill).toEqual(checked);
+  });
+
+  it("updates the manual branch in state before the remote check completes", async () => {
+    vi.mocked(api.checkGitHubUpdate).mockImplementation(
+      () => new Promise(() => undefined),
+    );
+
+    void useSkillStore.getState().setBranchOverride(updateableSkill.id, "main");
+
+    await vi.waitFor(() => {
+      expect(api.setBranchOverride).toHaveBeenCalledWith(
+        updateableSkill.id,
+        "main",
+      );
+    });
+    expect(useSkillStore.getState().skills[0].branchOverride).toBe("main");
+  });
+
+  it("removes only the chosen location and refreshes the discovered item", async () => {
+    const multiLocationSkill = {
+      ...updateableSkill,
+      installedLocations: ["/tmp/claude/fixture", "/tmp/codex/fixture"],
+    };
+    useSkillStore.setState({
+      skills: [multiLocationSkill],
+      selectedSkill: multiLocationSkill,
+    });
+    vi.mocked(api.removeSkill).mockResolvedValueOnce(["/tmp/claude/fixture"]);
+    vi.mocked(api.scanSkills).mockResolvedValueOnce([
+      {
+        ...multiLocationSkill,
+        installedLocations: ["/tmp/codex/fixture"],
+      },
+    ]);
+
+    await useSkillStore
+      .getState()
+      .removeSkill(multiLocationSkill.id, ["/tmp/claude/fixture"]);
+
+    expect(api.removeSkill).toHaveBeenCalledWith(multiLocationSkill.id, [
+      "/tmp/claude/fixture",
+    ]);
+    expect(useSkillStore.getState().skills[0].installedLocations).toEqual([
+      "/tmp/codex/fixture",
+    ]);
   });
 });

@@ -21,25 +21,28 @@ impl SkillDetector {
                 continue;
             }
 
-            for entry in WalkDir::new(base_path)
+            let mut entries = WalkDir::new(base_path)
                 .follow_links(true)
                 .max_depth(3)
-                .into_iter()
-                .filter_entry(|e| !Self::is_ignored_directory(e.file_name()))
-                .flatten()
-            {
+                .into_iter();
+            while let Some(entry) = entries.next() {
+                let Ok(entry) = entry else {
+                    continue;
+                };
+                if Self::is_ignored_directory(entry.file_name()) {
+                    if entry.file_type().is_dir() {
+                        entries.skip_current_dir();
+                    }
+                    continue;
+                }
                 let p = entry.path();
-                if p.is_dir() {
+                if entry.file_type().is_dir() {
                     if let Some(candidate) = Self::inspect_candidate_directory(p, base_path) {
                         let key = candidate.id.clone();
-                        let canonical = fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
 
                         if let Some(existing) = skills_map.get_mut(&key) {
                             if !existing.installed_locations.contains(&p.to_path_buf()) {
                                 existing.installed_locations.push(p.to_path_buf());
-                            }
-                            if !existing.installed_locations.contains(&canonical) {
-                                existing.installed_locations.push(canonical.clone());
                             }
                             if existing.agent_scope != candidate.agent_scope
                                 && existing.agent_scope != AgentScope::Global
@@ -54,12 +57,15 @@ impl SkillDetector {
                                 existing.compatibility = candidate.compatibility;
                             }
                         } else {
-                            let mut new_skill = candidate;
-                            if !new_skill.installed_locations.contains(&canonical) {
-                                new_skill.installed_locations.push(canonical);
-                            }
-                            skills_map.insert(key, new_skill);
+                            skills_map.insert(key, candidate);
                         }
+
+                        // A manifest marks the root of one installable skill.
+                        // Its own examples, templates or nested `skills/`
+                        // directory must never become extra cards. Collections
+                        // without a root manifest continue to expose each
+                        // independently declared child skill.
+                        entries.skip_current_dir();
                     }
                 }
             }
@@ -786,6 +792,49 @@ metadata:
             skills.is_empty(),
             "ordinary nested package.json files are not skills"
         );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn does_not_double_count_nested_skill_manifests_inside_an_installed_skill() {
+        let root = fixture_root("nested-skill-boundary");
+        let skill_root = root.join("skills/firebase");
+        write_file(
+            &skill_root.join("SKILL.md"),
+            "---\nname: firebase\n---\n# Firebase\n",
+        );
+        write_file(
+            &skill_root.join("skills/xcode-project-setup/SKILL.md"),
+            "---\nname: xcode-project-setup\n---\n# Example\n",
+        );
+
+        let skills = SkillDetector::scan_directories(&[root.join("skills")]);
+        assert_eq!(skills.len(), 1);
+        assert_eq!(skills[0].name, "firebase");
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn discovers_children_of_a_collection_without_its_own_manifest() {
+        let root = fixture_root("skill-collection");
+        let collection = root.join("skills/firebase");
+        write_file(
+            &collection.join("xcode-project-setup/SKILL.md"),
+            "---\nname: xcode-project-setup\n---\n# Xcode\n",
+        );
+        write_file(
+            &collection.join("firestore/SKILL.md"),
+            "---\nname: firestore\n---\n# Firestore\n",
+        );
+
+        let skills = SkillDetector::scan_directories(&[root.join("skills")]);
+        assert_eq!(skills.len(), 2);
+        assert!(skills
+            .iter()
+            .any(|skill| skill.name == "xcode-project-setup"));
+        assert!(skills.iter().any(|skill| skill.name == "firestore"));
 
         let _ = fs::remove_dir_all(root);
     }
