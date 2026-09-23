@@ -13,7 +13,7 @@ import {
   Globe,
   Check,
 } from "lucide-react";
-import { hasTrackingBranch } from "../lib/branch-tracking";
+import { hasUpdateSource } from "../lib/branch-tracking";
 
 export const Navbar: React.FC = () => {
   const { t, language, setLanguage } = useTranslation();
@@ -44,9 +44,11 @@ export const Navbar: React.FC = () => {
 
   const totalSkills = skills.length;
   const outdatedCount = skills.filter((s) => s.updateAvailable).length;
-  const missingBranchCount = skills.filter(
-    (skill) => Boolean(skill.remoteUrl) && !hasTrackingBranch(skill),
+  const missingTrackingSourceCount = skills.filter(
+    (skill) => !hasUpdateSource(skill),
   ).length;
+  const missingTrackingSourceLabel =
+    language === "pl" ? "Brak źródła" : "No update source";
 
   // Keyboard shortcut listener
   useEffect(() => {
@@ -318,9 +320,16 @@ export const Navbar: React.FC = () => {
                 ? "border-amber-500/40 bg-amber-500/10 text-amber-400"
                 : "border-border bg-card/60 text-muted-foreground hover:text-foreground"
             }`}
-            title="Show packages that need a tracking branch assigned"
+            title={
+              language === "pl"
+                ? "Pakiety bez zdalnego źródła aktualizacji (Git lub GitHub)"
+                : "Packages with no remote update source (Git or GitHub)"
+            }
           >
-            Bez gałęzi {missingBranchCount > 0 ? `(${missingBranchCount})` : ""}
+            {missingTrackingSourceLabel}{" "}
+            {missingTrackingSourceCount > 0
+              ? `(${missingTrackingSourceCount})`
+              : ""}
           </button>
 
           {/* Scopes Filter */}

@@ -21,6 +21,7 @@ import {
   Download,
   CheckCircle2,
   Trash2,
+  AlertTriangle,
 } from "lucide-react";
 
 const GithubIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
@@ -47,6 +48,7 @@ export const SkillDetailModal: React.FC = () => {
     setRepositoryOverride,
     removeSkill,
     deletingSkillId,
+    error,
   } = useSkillStore();
 
   const [copied, setCopied] = useState(false);
@@ -174,6 +176,15 @@ export const SkillDetailModal: React.FC = () => {
           className="relative w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-2xl border border-border bg-card shadow-2xl p-6 sm:p-8 flex flex-col justify-between"
         >
           <div>
+            {error && (
+              <div
+                role="alert"
+                className="mb-4 flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300"
+              >
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
             {/* Header */}
             <div className="flex items-start justify-between gap-4 pb-4 border-b border-border">
               <div>

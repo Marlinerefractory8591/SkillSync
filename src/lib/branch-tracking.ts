@@ -1,11 +1,10 @@
 import type { SkillMetadata } from "../types/skillsync";
 
 /**
- * A tag name (or the abbreviated SHA reported for a detached HEAD) is not a
- * tracking branch. Only a branch discovered from Git or selected explicitly
- * by the user removes an item from the "Without branch" queue.
+ * A usable upstream remote is the source of truth for whether an item can be
+ * checked for updates. Local branches, tags, and detached HEAD SHAs are refs,
+ * not proof that tracking is missing; Git remotes and GitHub release sources
+ * can all update a package without a checked-out branch.
  */
-export const hasTrackingBranch = (skill: SkillMetadata): boolean =>
-  [skill.branchOverride, skill.detectedBranch].some(
-    (branch) => typeof branch === "string" && branch.trim().length > 0,
-  );
+export const hasUpdateSource = (skill: SkillMetadata): boolean =>
+  typeof skill.remoteUrl === "string" && skill.remoteUrl.trim().length > 0;

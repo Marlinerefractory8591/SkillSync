@@ -25,13 +25,15 @@ impl ManagedItemDetector {
             if item_type == ManagedItemType::Skill {
                 continue;
             }
-            for entry in WalkDir::new(&monitored.path)
+            let mut entries = WalkDir::new(&monitored.path)
                 .follow_links(true)
                 .max_depth(4)
                 .into_iter()
-                .filter_entry(|entry| !Self::is_ignored_directory(entry.file_name()))
-                .flatten()
-            {
+                .filter_entry(|entry| !Self::is_ignored_directory(entry.file_name()));
+            while let Some(entry) = entries.next() {
+                let Ok(entry) = entry else {
+                    continue;
+                };
                 if !entry.file_type().is_dir() {
                     continue;
                 }
@@ -59,6 +61,11 @@ impl ManagedItemDetector {
                 } else {
                     items.insert(key, candidate);
                 }
+                // Like SKILL.md, a valid MCP/plugin manifest denotes one
+                // installable root. Do not descend into its bundled skills,
+                // fixtures, examples, or nested plugin definitions and turn
+                // them into extra top-level cards.
+                entries.skip_current_dir();
             }
         }
 
@@ -338,6 +345,30 @@ mod tests {
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].item_type, ManagedItemType::Plugin);
         assert_eq!(items[0].name, "superpowers");
+        let _ = fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn a_valid_plugin_root_is_a_discovery_boundary_for_nested_plugin_manifests() {
+        let path = root("nested-plugin");
+        fs::create_dir_all(path.join("outer/.claude-plugin")).unwrap();
+        fs::create_dir_all(path.join("outer/examples/embedded/.claude-plugin")).unwrap();
+        fs::write(
+            path.join("outer/.claude-plugin/plugin.json"),
+            r#"{"name":"outer","version":"1.0.0"}"#,
+        )
+        .unwrap();
+        fs::write(
+            path.join("outer/examples/embedded/.claude-plugin/plugin.json"),
+            r#"{"name":"embedded","version":"0.1.0"}"#,
+        )
+        .unwrap();
+
+        let items =
+            ManagedItemDetector::scan_paths(&[monitored(path.clone(), MonitoredPathType::Plugin)]);
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].name, "outer");
         let _ = fs::remove_dir_all(path);
     }
 

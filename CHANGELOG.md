@@ -2,6 +2,18 @@
 
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/).
 
+## [1.3.1] - 2026-09-23
+
+### Fixed
+
+- Make location removal independent: a stale, damaged or inaccessible installation no longer blocks removal of other selected copies. Report partial success with the affected paths, and keep errors visible in the skill details dialog.
+- Classify update tracking by the presence of a usable remote source, not by whether the local checkout currently has a branch. Detached HEADs and tag-based installations with a remote are no longer incorrectly listed as untracked.
+- Stop managed-item discovery below valid MCP and plugin manifests so bundled examples cannot become extra cards.
+
+### Improved
+
+- Reuse identical upstream checks during one scan when several skills point to the same source, version and ref, reducing repeated Git/GitHub requests.
+
 ## [1.3.0] - 2026-09-21
 
 ### Added
@@ -140,3 +152,4 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 [1.2.8]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.2.8
 [1.2.9]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.2.9
 [1.3.0]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.3.0
+[1.3.1]: https://github.com/tomaszboloz/SkillSync/releases/tag/v1.3.1

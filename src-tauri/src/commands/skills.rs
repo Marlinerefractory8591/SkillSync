@@ -178,6 +178,53 @@ fn remove_location(target: &Path) -> Result<(), String> {
     }
 }
 
+fn process_removal_locations<F>(
+    skill: &SkillMetadata,
+    requested: &[PathBuf],
+    all_skills: &[SkillMetadata],
+    mut remove_one: F,
+) -> Result<(Vec<PathBuf>, Vec<String>), String>
+where
+    F: FnMut(&Path) -> Result<(), String>,
+{
+    if requested.is_empty() {
+        return Err("Wybierz co najmniej jedną lokalizację do usunięcia.".to_string());
+    }
+
+    let available = available_locations(skill);
+    let mut targets = Vec::new();
+    for location in requested {
+        if !available.contains(location) {
+            return Err(format!(
+                "Odmowa usunięcia nieznanej lokalizacji: {}",
+                location.display()
+            ));
+        }
+        if !targets.contains(location) {
+            targets.push(location.clone());
+        }
+    }
+
+    let mut removed = Vec::new();
+    let mut failures = Vec::new();
+    for target in targets {
+        let validated =
+            match validate_removal_targets(skill, std::slice::from_ref(&target), all_skills) {
+                Ok(validated) => validated,
+                Err(error) => {
+                    failures.push(error);
+                    continue;
+                }
+            };
+        match remove_one(&validated[0]) {
+            Ok(()) => removed.push(validated[0].clone()),
+            Err(error) => failures.push(error),
+        }
+    }
+
+    Ok((removed, failures))
+}
+
 #[tauri::command]
 pub async fn scan_skills(
     app: tauri::AppHandle,
@@ -375,33 +422,57 @@ pub async fn remove_skill(
         .iter()
         .find(|skill| skill.id == skill_id)
         .ok_or_else(|| format!("Nie znaleziono skillu o identyfikatorze {skill_id}"))?;
-    let targets = validate_removal_targets(skill, &locations, &all_skills)?;
-
-    // Validate and snapshot every target first, so a failed preflight never
-    // leaves a partly deleted multi-location installation.
-    for target in &targets {
-        let metadata = fs::symlink_metadata(target)
-            .map_err(|error| format!("Nie można odczytać {}: {error}", target.display()))?;
-        if !metadata.file_type().is_symlink() {
-            BackupService::create_snapshot(target, &skill.id, &skill.current_version).map_err(
-                |error| {
-                    format!(
-                        "Nie udało się utworzyć migawki przed usunięciem {}: {error}",
+    // Process each requested installation independently. One stale, damaged,
+    // or unreadable location must not prevent the user's other selected copies
+    // from being removed. Every real directory still requires its own backup.
+    let (removed, failures) =
+        process_removal_locations(skill, &locations, &all_skills, |target| {
+            match fs::symlink_metadata(target) {
+                Ok(metadata) if !metadata.file_type().is_symlink() => {
+                    if let Err(error) =
+                        BackupService::create_snapshot(target, &skill.id, &skill.current_version)
+                    {
+                        return Err(format!(
+                        "Nie usunięto {}: nie udało się utworzyć migawki bezpieczeństwa: {error}",
                         target.display()
-                    )
-                },
-            )?;
-        }
-    }
+                    ));
+                    }
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    return Err(format!(
+                        "Nie usunięto {}: nie można odczytać lokalizacji: {error}",
+                        target.display()
+                    ));
+                }
+            }
+            remove_location(target)
+        })?;
 
-    for target in &targets {
-        remove_location(target)?;
+    if failures.is_empty() {
+        return Ok(removed
+            .iter()
+            .map(|target| target.to_string_lossy().to_string())
+            .collect());
     }
-
-    Ok(targets
-        .iter()
-        .map(|target| target.to_string_lossy().to_string())
-        .collect())
+    let prefix = if removed.is_empty() {
+        "Nie udało się usunąć żadnej lokalizacji."
+    } else {
+        "Usunięto część lokalizacji; pozostałe wymagają uwagi."
+    };
+    let removed_summary = if removed.is_empty() {
+        String::new()
+    } else {
+        format!(
+            " Usunięto: {}.",
+            removed
+                .iter()
+                .map(|target| target.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    };
+    Err(format!("{prefix}{removed_summary} {}", failures.join(" ")))
 }
 
 #[tauri::command]
@@ -574,17 +645,87 @@ mod tests {
         }
         let mut skill = deletion_fixture(first.clone(), "skill-fixture");
         skill.installed_locations.push(second.clone());
-        let targets = validate_removal_targets(
+        let (removed, failures) = process_removal_locations(
             &skill,
             std::slice::from_ref(&first),
             std::slice::from_ref(&skill),
+            remove_location,
         )
         .unwrap();
 
-        remove_location(&targets[0]).unwrap();
+        assert_eq!(removed, vec![first.clone()]);
+        assert!(failures.is_empty());
         assert!(!first.exists());
         assert!(second.exists());
 
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn remove_everywhere_continues_when_one_location_fails() {
+        let root = std::env::temp_dir().join(format!(
+            "skillsync-removal-all-{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        let first = root.join("claude/fixture");
+        let second = root.join("codex/fixture");
+        for location in [&first, &second] {
+            fs::create_dir_all(location).unwrap();
+            fs::write(location.join("SKILL.md"), "# Skill").unwrap();
+        }
+        let mut skill = deletion_fixture(first.clone(), "skill-fixture");
+        skill.installed_locations.push(second.clone());
+
+        let (removed, failures) = process_removal_locations(
+            &skill,
+            &[first.clone(), second.clone()],
+            std::slice::from_ref(&skill),
+            |target| {
+                if target == first {
+                    return Err("fixture failure".to_string());
+                }
+                remove_location(target)
+            },
+        )
+        .unwrap();
+
+        assert_eq!(removed, vec![second.clone()]);
+        assert_eq!(failures, vec!["fixture failure"]);
+        assert!(first.exists(), "the failed installation must be preserved");
+        assert!(
+            !second.exists(),
+            "the other location should still be removed"
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn removal_rejects_any_unknown_location_before_removing_known_ones() {
+        let root = std::env::temp_dir().join(format!(
+            "skillsync-removal-unknown-{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+        let first = root.join("known");
+        let unknown = root.join("unknown");
+        for location in [&first, &unknown] {
+            fs::create_dir_all(location).unwrap();
+            fs::write(location.join("SKILL.md"), "# Skill").unwrap();
+        }
+        let skill = deletion_fixture(first.clone(), "skill-fixture");
+
+        let error = process_removal_locations(
+            &skill,
+            &[first.clone(), unknown],
+            std::slice::from_ref(&skill),
+            remove_location,
+        )
+        .unwrap_err();
+
+        assert!(error.contains("nieznanej lokalizacji"));
+        assert!(
+            first.exists(),
+            "untrusted paths must invalidate the request"
+        );
         let _ = fs::remove_dir_all(root);
     }
 

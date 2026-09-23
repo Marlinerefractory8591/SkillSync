@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { hasTrackingBranch } from "./branch-tracking";
+import { hasUpdateSource } from "./branch-tracking";
 import type { SkillMetadata } from "../types/skillsync";
 
-const skill = (overrides: Partial<SkillMetadata>): SkillMetadata => ({
-  id: "skill-fixture",
-  name: "fixture",
-  description: "Fixture",
-  currentVersion: "unknown",
+const skill = (overrides: Partial<SkillMetadata> = {}): SkillMetadata => ({
+  id: "skill-test",
+  name: "test",
+  description: "fixture",
+  currentVersion: "1.0.0",
   latestVersion: null,
-  author: "Fixture",
-  path: "/tmp/fixture",
+  author: "test",
+  path: "/tmp/test",
   isGitRepo: true,
-  remoteUrl: "https://github.com/example/fixture",
+  remoteUrl: null,
   branchOrTag: null,
   agentScope: "global",
   status: "up_to_date",
@@ -19,20 +19,35 @@ const skill = (overrides: Partial<SkillMetadata>): SkillMetadata => ({
   changelog: null,
   dependencies: [],
   permissions: [],
-  lastChecked: new Date().toISOString(),
+  lastChecked: new Date(0).toISOString(),
   ...overrides,
 });
 
-describe("hasTrackingBranch", () => {
-  it("does not mistake a detached HEAD SHA for a branch", () => {
-    expect(hasTrackingBranch(skill({ branchOrTag: "c0ffee1" }))).toBe(false);
+describe("hasUpdateSource", () => {
+  it("treats a remote-backed detached HEAD as trackable", () => {
+    expect(
+      hasUpdateSource(
+        skill({
+          remoteUrl: "https://github.com/example/repo",
+          branchOrTag: "abc1234",
+        }),
+      ),
+    ).toBe(true);
   });
 
-  it("accepts a saved branch override immediately", () => {
-    expect(hasTrackingBranch(skill({ branchOverride: "main" }))).toBe(true);
+  it("treats a GitHub release source without a local Git checkout as trackable", () => {
+    expect(
+      hasUpdateSource(
+        skill({
+          isGitRepo: false,
+          remoteUrl: "https://github.com/example/repo",
+        }),
+      ),
+    ).toBe(true);
   });
 
-  it("accepts a branch found in the local Git worktree", () => {
-    expect(hasTrackingBranch(skill({ detectedBranch: "develop" }))).toBe(true);
+  it("includes items with no remote in the missing-source filter", () => {
+    expect(hasUpdateSource(skill({ remoteUrl: "  " }))).toBe(false);
+    expect(hasUpdateSource(skill({ remoteUrl: null }))).toBe(false);
   });
 });

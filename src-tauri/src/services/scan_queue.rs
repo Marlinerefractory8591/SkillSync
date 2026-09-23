@@ -2,6 +2,7 @@ use crate::commands::skills::apply_github_release;
 use crate::models::skill::{SkillMetadata, SkillStatus};
 use crate::services::git::GitService;
 use crate::services::github::GitHubService;
+use std::collections::HashMap;
 use std::sync::{
     atomic::{AtomicU64, Ordering},
     Arc,
@@ -32,16 +33,32 @@ impl ScanQueue {
         let worker_generation = Arc::clone(&generation);
 
         tauri::async_runtime::spawn(async move {
+            let mut active_generation = None;
+            let mut generation_cache = HashMap::<String, SkillMetadata>::new();
             while let Some(job) = receiver.recv().await {
                 if worker_generation.load(Ordering::Acquire) != job.generation {
                     continue;
                 }
+                if active_generation != Some(job.generation) {
+                    active_generation = Some(job.generation);
+                    generation_cache.clear();
+                }
 
-                let skill = refresh_upstream(job.skill).await;
+                let cache_key = upstream_cache_key(&job.skill);
+                let (skill, checked_upstream) =
+                    if let Some(cached) = generation_cache.get(&cache_key) {
+                        (reuse_upstream_result(job.skill, cached), false)
+                    } else {
+                        let skill = refresh_upstream(job.skill).await;
+                        generation_cache.insert(cache_key, skill.clone());
+                        (skill, true)
+                    };
                 if worker_generation.load(Ordering::Acquire) == job.generation {
                     let _ = job.app.emit("scan-result", skill);
                 }
-                tokio::time::sleep(REQUEST_INTERVAL).await;
+                if checked_upstream {
+                    tokio::time::sleep(REQUEST_INTERVAL).await;
+                }
             }
         });
 
@@ -60,6 +77,29 @@ impl ScanQueue {
             }
         }
     }
+}
+
+fn upstream_cache_key(skill: &SkillMetadata) -> String {
+    format!(
+        "{}|{}|{}|{}|{:?}|{}",
+        skill.remote_url.as_deref().unwrap_or_default().trim(),
+        skill.current_version,
+        skill.branch_override.as_deref().unwrap_or_default().trim(),
+        skill.branch_or_tag.as_deref().unwrap_or_default().trim(),
+        skill.item_type,
+        skill.is_git_repo
+    )
+}
+
+fn reuse_upstream_result(mut target: SkillMetadata, cached: &SkillMetadata) -> SkillMetadata {
+    target.latest_version = cached.latest_version.clone();
+    target.status = cached.status.clone();
+    target.update_available = cached.update_available;
+    target.changelog = cached.changelog.clone();
+    target.update_compatibility = cached.update_compatibility.clone();
+    target.last_checked = cached.last_checked;
+    target.branch_or_tag = cached.branch_or_tag.clone();
+    target
 }
 
 impl Default for ScanQueue {
@@ -228,4 +268,71 @@ async fn refresh_branch_upstream(mut skill: SkillMetadata, branch: String) -> Sk
     }
     skill.last_checked = chrono::Utc::now();
     skill
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::skill::{AgentScope, ManagedItemType};
+    use std::path::PathBuf;
+
+    fn fixture(id: &str, name: &str, path: &str) -> SkillMetadata {
+        SkillMetadata {
+            item_type: ManagedItemType::Skill,
+            id: id.to_string(),
+            name: name.to_string(),
+            description: format!("{name} description"),
+            current_version: "1.0.0".to_string(),
+            latest_version: None,
+            author: "Tester".to_string(),
+            path: PathBuf::from(path),
+            is_git_repo: true,
+            remote_url: Some("https://github.com/example/repo".to_string()),
+            branch_or_tag: Some("a1b2c3d".to_string()),
+            detected_branch: None,
+            branch_override: None,
+            agent_scope: AgentScope::Global,
+            status: SkillStatus::Checking,
+            update_available: false,
+            changelog: None,
+            dependencies: vec![],
+            permissions: vec![],
+            last_checked: chrono::Utc::now(),
+            compatibility: None,
+            update_compatibility: None,
+            installed_locations: vec![PathBuf::from(path)],
+        }
+    }
+
+    #[test]
+    fn same_source_version_and_ref_share_one_scan_check() {
+        let first = fixture("skill-first", "first", "/skills/first");
+        let second = fixture("skill-second", "second", "/skills/second");
+        assert_eq!(upstream_cache_key(&first), upstream_cache_key(&second));
+
+        let mut other_ref = second.clone();
+        other_ref.branch_override = Some("main".to_string());
+        assert_ne!(upstream_cache_key(&first), upstream_cache_key(&other_ref));
+    }
+
+    #[test]
+    fn reusing_a_check_keeps_the_skill_specific_metadata() {
+        let first = fixture("skill-first", "first", "/skills/first");
+        let mut checked = first.clone();
+        checked.latest_version = Some("1.2.0".to_string());
+        checked.status = SkillStatus::UpdateAvailable;
+        checked.update_available = true;
+        checked.branch_or_tag = Some("v1.2.0".to_string());
+
+        let second = fixture("skill-second", "second", "/skills/second");
+        let reused = reuse_upstream_result(second, &checked);
+
+        assert_eq!(reused.id, "skill-second");
+        assert_eq!(reused.name, "second");
+        assert_eq!(reused.path, PathBuf::from("/skills/second"));
+        assert_eq!(reused.latest_version.as_deref(), Some("1.2.0"));
+        assert_eq!(reused.branch_or_tag.as_deref(), Some("v1.2.0"));
+        assert!(reused.update_available);
+        assert_eq!(reused.status, SkillStatus::UpdateAvailable);
+    }
 }

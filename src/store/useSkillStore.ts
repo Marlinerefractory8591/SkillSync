@@ -404,6 +404,10 @@ export const useSkillStore = create<SkillState>()(
           get().closeDetail();
         }
       } catch (err: unknown) {
+        // A remove-everywhere request can now complete some locations even if
+        // another is blocked by a damaged manifest or backup error. Refresh
+        // discovery so the modal reflects the locations that actually remain.
+        await get().fetchSkills(true);
         set((state) => {
           state.error = formatError(err, "Nie udało się usunąć skillu");
         });

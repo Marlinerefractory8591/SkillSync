@@ -4,7 +4,7 @@ import { useSkillStore } from "../store/useSkillStore";
 import { useTranslation } from "../i18n/useTranslation";
 import { SkillCard } from "./SkillCard";
 import { SearchX, FolderPlus, RefreshCw } from "lucide-react";
-import { hasTrackingBranch } from "../lib/branch-tracking";
+import { hasUpdateSource } from "../lib/branch-tracking";
 
 export const SkillList: React.FC = () => {
   const { t } = useTranslation();
@@ -31,10 +31,7 @@ export const SkillList: React.FC = () => {
         return false;
       }
 
-      if (
-        branchFilter === "missing" &&
-        (!skill.remoteUrl || hasTrackingBranch(skill))
-      ) {
+      if (branchFilter === "missing" && hasUpdateSource(skill)) {
         return false;
       }
 
